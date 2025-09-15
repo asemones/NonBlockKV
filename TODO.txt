@@ -1,0 +1,186 @@
+implement the io-uring write engine
+implement scheduling with coroutines
+//complete both by march 14th, fully tested and intergrated
+consider key-value seperation
+iterator filters
+cache line bloom filters
+merge codebase with new scheduler features
+
+requirements:
+1. change cache to the new model
+    since everything now needs to be alligned to 4kb pages even with compression, this presents 
+    a challenge. find a fix
+    fixed!
+2. route all requests thru the io io_manager
+3. change compactor to function with new system 
+4. remove all old synchronization
+
+
+the way the db may be interacted with: compactor operations, read/write. api calls
+become tasks in the scheduler, and the compactor scheduler will just get ran with compactions then becoming
+subtasks.
+figure out how to return values from one shard
+just submit tasks to shards, nothing fancy, task function should be the same
+if doing distributed tx
+
+
+figure out how the fuck to do cache with the force 4kb read size, zero copy, no long waits
+either get rid of compression, or add a logical to physical compression map that gets filled on 
+Solved without a linked list or a map or high compute- a little tacky though
+
+figure out cascade api 
+cases for tasks:
+a task is submitted on a calling thread NOT apart of cascade. Here, the return value is left to the caller to Solved
+a task is submitted on the same thread as the runtime. Here, we may do a special kind of yield that awaits the result of this task, or multiple task
+via a fork join (SOLVED)
+a task is submitted on a calling thread apart of a different runtime in cascade. Here, we may use an interruptable return to await the task, or multiple task
+via a fork join. There are several ways to solve this one. here are the cases:
+
+case WAIT: 
+    sender calls a rpc and waits
+    recv recieves and submits into framework
+    recv task completes. flag is marked indicating its a wait case
+    recv somehow sends a message to the sender shard with the return value
+    sender resumes with new return value
+case NOWAIT
+    sender calls a rpc and immediately returns
+    recv recieves and submits into framework
+    recv task completes. flag is marked indicating NOWAIT
+    recv sends message to sender shard indicating this
+    sender shard then ???
+
+db_schedule* schedule
+
+
+we can do a queue with "active" indexs (or just the raw ptrs)
+fix how ids are mapped to inbox indices
+intergrate wal with new system
+change the wal to be n segemented files that acts like a ring buffer
+figure out how to handle tasks "overflowing"
+done
+preformance optimizations: runs like utter garbage
+need to figure out how to reduce the active queue size
+AND accurate waits without a deadlock
+
+preformance targets:
+scheduler overhead is not great
+way too much time spent hashing stuff
+move skiplist to an arena or even consider replacing it as a memetable-> very slow
+considering removing all state from function returns, bad. heres how it maybe? could be done
+
+1. internal waits can just return the tasks future. Easy peasy
+2. Internal nowaits have to do the following: allocate a memory location for storing the future itself,
+and return the address of that location. For this, we can use the addr it is slotted into for the task. Check 
+if parent exists. if so, sub val. have the task store its future in a memory address passed to it by the parent
+
+2. exterrnal requests can just use future pointers
+3. cross core commuincation is much harder
+
+determine how the compactor should operate:
+
+1. need yield points within singular compactions-> can use std reads for this. O(n) worst case
+2. need a way to dispatch tacks at a high frequency 
+3. need an easy way to throttle (maybe a second queue in the task manager for priority tasks?)
+4. fuck off with the copying. 1x for moving into compression buffer, 1x for compression AT MOST
+5. remove all of the multithreading infra
+6. 
+
+work on memtable and cache pinning/unpinning
+iterator consistentccy
+rewrite all of the shitass meta data garbage
+
+
+backups/restore
+block index cache for mega databases
+sst manager and block/filter cache and parittioned filters\blocks
+skiplist for sst tables, not lists
+
+
+figure out how to store bloom filters and blocks 
+new file format:
+data blocks
+partition 1 ...x
+(blocks, bloom) 1.... (blocks,bloom) x
+intergrate buffer pool strategies + fixed setup
+record level cache
+have the compactor work with the new sst manager/system, hold off for now until above is working;
+big and little edian support
+finish v log
+blocks should encode 2 byte offsets at the end so we dont do a dumb linear scan
+compactor/compaction needs to be a bit more liberal about when it dumps keys to the buffer, so the offset approach works correctly
+compactor needs the new offset changes too, just do it all at once with the vlog stuff
+rewrite shitass compactor code holy fuck it is awful
+iters need a smart scan ability that is lost with the offset based decode scheme, just use the old system.
+actually no, on demand smart decode
+need to account for the compression of multiple logical blocks into a physical block
+coroutine or async-> need a way to spam incredibly lighweight io requests and tie them to one task while enablig waits
+
+TODO_LOG
+
+8.23 writing tests for allocator/bp, due 8.23/morning 
+8.24 redo the bp hotcache and have it pass the first test
+8.25 more complete/complex tests
+8.28 pick what to do about preformance
+8.29 bp allocators seem okish, hold off further optimizations until its obvious they are an issue X
+8.29 write tests for sst_manager and friends
+9.1 replace the bad sst_sl, SOLVE MEMORY LAYOUT X
+9.2 finish converting to a decent string type, solve disk layout issues with block indices
+    finally almost done with this not fun stuff
+9.3 fix v_log and other uses of decent string type; ensure it works with paritions properly; ensure disk usage is correct
+9.10 manifest
+
+v_log entrances and exits;
+
+entrance at two spots; after WAL, during compaction, read path
+or maybe we just split at WAL, it makes some things easier but others harder
+on disk format:
+key_len, key, value_len, value;
+file_name/ptr + offset is value
+so we max fix the value_len to 8
+and since all values of certain len on disk will be less than 512 b
+we can add mask to indicate value > than a certain size
+
+
+gc triggered at compaction
+we will rewrite files and update enteries based on the ratio of bytes in each file on a delete();
+
+
+
+
+wrap up the v_log and large value derefs
+
+
+features that must be working:
+value log 
+buffer pool strategies X
+parittioned indices 
+sst manager 
+    block based bloom filters
+consider solving the "fence pointer" problem asap X
+and xl keys X
+SOLVE MEMORY LAYOUY
+THEN:
+the aco switch + intergrate with scheduler
+proper fsync: sync file, sync directory to ensure file md is durable
+manifest and ensuring all componets are crash safe via this
+replace everything with btree when you feel like it 
+drop l0 flush for WAL blob files as l_0 to reduce WA
+finally txns- distrbuted accross nodes/multi paritions ew ew ew
+consider calvin deterministic 
+preformance testing/tuning+ simd to shit
+
+
+
+Random notes for future:
+swap blocks to data friendly design, only after functionting version of all prev changes
+    honestly not much can be done here without killing mem use- test,
+do the same for sst
+replace all skiplists with a more powerful ds, some form of btree or some fancy prefix compression tree
+prefix compression tables
+actually start working on the real database part after a whole ass year.. who knew a sota kv store would take ~1k hrs
+    cpp?
+invent a searchable compression file format for sst
+unikernel 
+io uring optimizations, option for block device
+record value cache integrated with memtable
+
