@@ -1,11 +1,12 @@
 #include "sst_manager.h"
 
-index_cache create_ind_cache(uint64_t sst_size, uint64_t partition_size, uint64_t mem_size){
+
+index_cache create_ind_cache(uint64_t max_partition_size, uint64_t block_index_sz, uint64_t mem_size){
     index_cache cache;
     cache.capacity = mem_size;
     cache.filled_pages = 0;
     cache.clock_hand = 0;
-    uint64_t num_blocks=  ceil_int_div(sst_size, partition_size);
+    uint64_t num_blocks=  ceil_int_div(max_partition_size, block_index_sz);
     uint64_t size_per_entry = num_blocks * block_ind_size();
     uint64_t num_entries = (size_per_entry > 0) ? (mem_size / size_per_entry) : 0;
     cache.frames = malloc(num_entries * sizeof(partiton_cache_element));
@@ -37,23 +38,22 @@ block_index * allocate_blocks(uint64_t num, slab_allocator * block_allocator, ui
     }
     return alloc;
 }
-bloom_filter * sst_make_bloom(uint64_t num_keys, uint64_t num_hash, const sst_man_sst_inf_cf *config){
+bloom_filter * sst_make_bloom(uint64_t num_keys, uint64_t num_hash, const level_options *level_conf){
    uint8_t bits_per_word = 64;
-   uint64_t required = num_keys * config->bits_per_key;
+   uint64_t required = num_keys * level_conf->bits_per_key;
    uint64_t words = ceil_int_div(required, bits_per_word);
    return bloom(num_hash,words, false, NULL);
 }
-bb_filter sst_make_part_bloom(uint64_t num_keys, const sst_man_sst_inf_cf *config){
+bb_filter sst_make_part_bloom(uint64_t num_keys, const level_options *level_conf){
     bb_filter f;
-    bb_filter_init_capacity(&f, num_keys, config->bits_per_key);
+    bb_filter_init_capacity(&f, num_keys, level_conf->bits_per_key);
     return f;
 }
-sst_f_inf *  allocate_sst(sst_manager * mana,  uint64_t num_keys){
+sst_f_inf *  allocate_sst(sst_manager * mana,  uint64_t num_keys, int level){
     sst_f_inf * base = NULL;
-    /*this is bad form; only allows for one sst size*/
-    uint64_t num_blocks = ceil_int_div(mana->config.sst_table_size, mana->config.block_index_size);
+    uint64_t num_blocks = ceil_int_div(mana->config.levels[level].file_size, mana->config.block_index_size);
     char* mem_block = slalloc(&mana->sst_memory.cached, mana->sst_memory.cached.pagesz);
-    base = mem_block;
+    base = (sst_f_inf*)mem_block;
     mem_block += sizeof(*base);
     *base = create_sst_filter(NULL);
     base->block_indexs->arr = allocate_blocks(num_blocks, &mana->sst_memory.non_cached, mana->size_per_block);
@@ -61,19 +61,19 @@ sst_f_inf *  allocate_sst(sst_manager * mana,  uint64_t num_keys){
     base->min = f_str_alloc(mem_block);
     base->max = f_str_alloc(mem_block + MAX_KEY_SIZE);
     base->file_name = mem_block + (MAX_KEY_SIZE * 2);
-    base->filter = sst_make_bloom(num_keys, 2, &mana->config);
+    base->filter = sst_make_bloom(num_keys, 2, &mana->config.levels[level]);
     return base;
 }
-sst_partition_ind* allocate_part(uint64_t num_keys, uint64_t num, sst_manager* mana) {
+sst_partition_ind* allocate_part(uint64_t num_keys, uint64_t num, sst_manager* mana, int level) {
     if (num == 0) return NULL;
     uint64_t keys_per_partition = ceil_int_div(num_keys, num);
-    size_t size_per_part = sizeof(sst_partition_ind) + 40; 
+    size_t size_per_part = sizeof(sst_partition_ind) + 40;
     sst_partition_ind* inds = slalloc(&mana->sst_memory.non_cached, size_per_part * num);
     char* memory_base = (char*)inds;
     for (uint64_t i = 0; i < num; i++) {
         sst_partition_ind* current_ind = (sst_partition_ind*)(memory_base + i * size_per_part);
         current_ind->min_fence = f_str_alloc((char*)(current_ind + 1));
-        current_ind->filter = sst_make_part_bloom(keys_per_partition, &mana->config);
+        current_ind->filter = sst_make_part_bloom(keys_per_partition, &mana->config.levels[level]);
         current_ind->pg = NULL;
         current_ind->num_blocks = 0;
         current_ind->blocks = NULL;
@@ -83,22 +83,28 @@ sst_partition_ind* allocate_part(uint64_t num_keys, uint64_t num, sst_manager* m
 sst_f_inf * allocate_non_l0(sst_manager * mana, uint64_t num_keys, int level){
     sst_f_inf * base;
     if (level <= mana->cached_levels){
-        return allocate_sst(mana, num_keys);
+        return allocate_sst(mana, num_keys, level);
     }
     char* mem_block = slalloc(&mana->sst_memory.non_cached, sizeof(sst_f_inf));
-    base = mem_block;
+    base = (sst_f_inf*)mem_block;
     mem_block += sizeof(*base);
-    base->sst_partitions->arr = allocate_part(num_keys, mana->parts_per, mana);
-    base->sst_partitions->cap = mana->parts_per;
-    base->sst_partitions->len = mana->parts_per > 0 ? mana->parts_per : 0;
+    const level_options *level_conf = &mana->config.levels[level];
+    uint64_t parts_per = ceil_int_div(level_conf->file_size, level_conf->partition_size);
+    base->sst_partitions->arr = allocate_part(num_keys, parts_per, mana, level);
+    base->sst_partitions->cap = parts_per;
+    base->sst_partitions->len = parts_per > 0 ? parts_per : 0;
     return base;
+}
+sst_f_inf * allocate_level(sst_manager * mana, uint64_t num_keys, int level){
+    if (level == 0 ) return allocate_sst(mana, num_keys, level);
+    return allocate_non_l0(mana, num_keys, level);
 }
 static size_t get_free_frame(index_cache *c) {
     if (c->filled_pages < c->max_pages) {
         return c->filled_pages++;
     }
     return ind_clock_evict(c);
-} 
+}
 partiton_cache_element * get_part(index_cache *c, sst_partition_ind * ind, const char * fn){
     if (ind->pg){
         return ind->pg;
@@ -140,29 +146,39 @@ void unpin_part(sst_partition_ind * ind){
         ind->pg = NULL;
     }
 }
-uint64_t calculate_cached_size(sst_man_sst_inf_cf config){
-    uint64_t blocks_per_sst = ceil_int_div(config.sst_table_size, config.block_index_size);
+uint64_t calculate_cached_size(const sst_man_sst_inf_cf *config, int level){
+    uint64_t blocks_per_sst = ceil_int_div(config->levels[level].file_size, config->block_index_size);
     uint64_t size_from_blocks = blocks_per_sst * block_ind_size();
     uint64_t list_size = sizeof(list);
     uint64_t base_size = MAX_KEY_SIZE * 2 + MAX_F_N_SIZE + sizeof(sst_f_inf);
     return list_size + base_size + size_from_blocks;
 }
-static uint64_t get_num_parts(sst_man_sst_inf_cf config){
-    uint64_t blocks_per_part = ceil_int_div(config.partition_size, block_ind_size());
-    uint64_t blocks_per_sst = ceil_int_div(config.sst_table_size, config.block_index_size);
-    return ceil_int_div(blocks_per_sst, blocks_per_part);
+static uint64_t get_num_parts(const sst_man_sst_inf_cf *config, int level){
+    return ceil_int_div(config->levels[level].file_size, config->levels[level].partition_size);
 }
-static uint64_t calculate_non_cached_size(sst_man_sst_inf_cf config){
-    uint64_t parts_per_sst = get_num_parts(config);
+static uint64_t calculate_non_cached_size(const sst_man_sst_inf_cf *config, int level){
+    uint64_t parts_per_sst = get_num_parts(config, level);
     uint64_t list_size = sizeof(list);
     uint64_t base_size = MAX_KEY_SIZE * 2 + MAX_F_N_SIZE + sizeof(sst_f_inf);
     uint64_t part_size = sizeof(sst_partition_ind) + 40;
     return (parts_per_sst * part_size) + base_size + list_size;
 }
-sst_allocator create_sst_all(sst_man_sst_inf_cf config){
+sst_allocator create_sst_all(const sst_man_sst_inf_cf *config, int cached_levels){
     sst_allocator allocator;
-    allocator.cached = create_allocator(calculate_cached_size(config), 1024);
-    allocator.non_cached = create_allocator(calculate_non_cached_size(config), 1024);
+    uint64_t max_cached_sz = 0;
+    for (int i = 0; i <= cached_levels; i++) {
+        uint64_t current_size = calculate_cached_size(config, i);
+        if (current_size > max_cached_sz) max_cached_sz = current_size;
+    }
+
+    uint64_t max_non_cached_sz = 0;
+    for (int i = cached_levels + 1; i < MAX_LEVEL_SETTINGS; i++) {
+        uint64_t current_size = calculate_non_cached_size(config, i);
+        if (current_size > max_non_cached_sz) max_non_cached_sz = current_size;
+    }
+
+    allocator.cached = create_allocator(max_cached_sz > 0 ? max_cached_sz : 1, 1024);
+    allocator.non_cached = create_allocator(max_non_cached_sz > 0 ? max_non_cached_sz : 1, 1024);
     return allocator;
 }
 sst_manager create_manager(sst_man_sst_inf_cf config, uint64_t mem_size){
@@ -173,10 +189,16 @@ sst_manager create_manager(sst_man_sst_inf_cf config, uint64_t mem_size){
         mana.non_zero_l[i] = create_sst_sl(1024);
     }
     mana.cached_levels = 1;
-    mana.cache = create_ind_cache(config.sst_table_size, config.partition_size, mem_size);
+
+    uint64_t max_part_size = 0;
+    for (int i = 0; i < MAX_LEVEL_SETTINGS; i++) {
+        if (config.levels[i].partition_size > max_part_size) {
+            max_part_size = config.levels[i].partition_size;
+        }
+    }
+    mana.cache = create_ind_cache(max_part_size, config.block_index_size, mem_size);
     mana.size_per_block = block_ind_size();
-    mana.parts_per = get_num_parts(config);
-    mana.sst_memory = create_sst_all(config);
+    mana.sst_memory = create_sst_all(&config, mana.cached_levels);
     return mana;
 }
 void free_manager(sst_manager * manager){
@@ -217,10 +239,10 @@ size_t find_sst_file(list *sst_files, f_str key) {
         sst_f_inf *sst = &l[middle_index];
         if (f_cmp(key, sst->min) >= 0 && f_cmp(key, sst->max)  <= 0) {
             return middle_index;
-        } 
+        }
         else if (f_cmp(key, sst->max) > 0) {
             min_index = middle_index + 1;
-        } 
+        }
         else {
             max_index = middle_index;
         }
@@ -313,6 +335,5 @@ uint64_t get_num_l_0(sst_manager * mana){
 void free_sst_sst_man(sst_manager * mana, sst_f_inf * inf, int level){
     if (level <= 0 ){
         slfree_full_slab(&mana->sst_memory.non_cached, inf);
-         /*start of its memory block*/
     }
 }

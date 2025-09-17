@@ -11,10 +11,8 @@ static sst_manager create_env(sst_man_sst_inf_cf config, uint64_t memsize){
 }
 static sst_man_sst_inf_cf default_test_config(){
     sst_man_sst_inf_cf config;
-    config.bits_per_key = 10;
+    set_level_options_lin(config.levels, 7, 4096 * 256, 10, 4 * 1096);
     config.block_index_size = 4 * 1024;
-    config.partition_size = 8 * 1024;
-    config.sst_table_size = 512 * 1024;
     return config;
 }
 void test_create(){
@@ -29,7 +27,7 @@ void test_create(){
 void test_make_ssts(){
     sst_man_sst_inf_cf config = default_test_config();
     sst_manager m = create_env(config, 256 * 1024);
-    sst_f_inf * sst =  allocate_sst(&m,  100);
+    sst_f_inf * sst =  allocate_sst(&m,  100, 0);
     sst_f_inf *sst_l_2 = allocate_non_l0(&m, 1000, 2);
     TEST_ASSERT_NOT_NULL(sst->block_indexs->arr);
     TEST_ASSERT_NOT_NULL(sst_l_2->sst_partitions->arr);
@@ -37,7 +35,7 @@ void test_make_ssts(){
 static sst_f_inf * make_dummy_sst(sst_manager * m, const char * min, const char * max, int level){
     sst_f_inf * sst;
     if (level <=0){
-        sst = allocate_sst(m, 100);
+        sst = allocate_sst(m, 100,level);
     }
     else{
         sst=  allocate_non_l0(m, 100, level);

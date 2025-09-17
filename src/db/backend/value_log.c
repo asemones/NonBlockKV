@@ -136,7 +136,7 @@ value_ptr v_log_write(value_log * v, f_str key, f_str value){
     return formatted;
 }
 int v_log_delete(uint64_t file_id, v_log_tbl * tbl, uint64_t val_len){
-    v_log_file * file;
+    v_log_file * file = NULL;
     if (!v_log_tbl_get(tbl, file_id, file)) return -1;
     file->deleted_b += val_len;
     v_log_tbl_put(tbl, file_id, *file, NULL);

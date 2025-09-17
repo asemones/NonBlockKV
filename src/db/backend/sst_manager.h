@@ -30,10 +30,8 @@ typedef struct index_cache {
     uint64_t max_pages;
 } index_cache;
 typedef struct {
-    uint64_t sst_table_size;
     uint64_t block_index_size;
-    uint64_t partition_size;
-    uint8_t bits_per_key;
+    level_options *levels;
 } sst_man_sst_inf_cf;
 
 typedef struct sst_manager{
@@ -58,5 +56,5 @@ sst_f_inf * allocate_non_l0(sst_manager * mana, uint64_t num_keys, int level);
 size_t find_block(list * block_indexs, const f_str key);
 size_t find_sst_file(list *sst_files, f_str key);
 sst_f_inf * get_sst(sst_manager * mana, f_str targ, int level);
-sst_f_inf *  allocate_sst(sst_manager * mana,  uint64_t num_keys);
+sst_f_inf *  allocate_sst(sst_manager * mana,  uint64_t num_keys, int level);
 #endif

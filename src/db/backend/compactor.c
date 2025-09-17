@@ -47,7 +47,8 @@ compact_manager * init_cm(meta_data * meta, shard_controller * c){
     manager->base_level_size = meta->base_level_size;
     manager->min_compact_ratio = meta->min_c_ratio; 
     manager->dict_buffer_pool = create_pool(NUM_PAGE_BUFFERS);
-    int  size = GLOB_OPTS.SST_TABLE_SIZE* 1;
+    /*come back here*/
+    int  size = 0;
     for (int i = 0; i < NUM_PAGE_BUFFERS; i++){
         insert_struct(manager->dict_buffer_pool, create_buffer(size));
     }
@@ -112,12 +113,13 @@ void reset_block_counters(int *block_b_count, int *sst_b_count){
     *block_b_count = 2;
     *sst_b_count +=2;
 }
-int write_blocks_to_file(byte_buffer *dest_buffer, byte_buffer * compression_buffer, byte_buffer * dict_buffer, sst_f_inf* curr_sst, list * entrys, db_FILE *curr_file) {
+static int write_blocks_to_file(byte_buffer *dest_buffer, byte_buffer * compression_buffer, byte_buffer * dict_buffer, sst_f_inf* curr_sst, list * entrys, db_FILE *curr_file, 
+uint64_t l_size) {
     int keys = 0;
     int skipped = 0;
 
 
-    if (compression_buffer == NULL || compression_buffer->max_bytes < GLOB_OPTS.SST_TABLE_SIZE){
+    if (compression_buffer == NULL || compression_buffer->max_bytes < l_size ){
         curr_sst->use_dict_compression = false;
     }
     else{
@@ -214,6 +216,7 @@ block_index init_block(arena * mem_store, size_t* off_track){
 /*min key copying screwed up*/
 int merge_tables(byte_buffer *dest_buffer, byte_buffer * compression_buffer, compact_job_internal * job, byte_buffer * dict_buffer, shard_controller * c) {
     sst_iter  * its = pad_allocate(sizeof(sst_iter)* job->to_merge->len);
+    uint64_t dest_l_s = get_opt_file_s(job->end_level);
     frontier *pq = Frontier(sizeof(merge_data), 0, &compare_merge_data);
     if (pq == NULL) return STRUCT_NOT_MADE;
     list * entrys = List(0, sizeof(merge_data), false);
@@ -242,7 +245,8 @@ int merge_tables(byte_buffer *dest_buffer, byte_buffer * compression_buffer, com
     sst_f_inf * curr_sst=  pad_allocate(sizeof(sst_f_inf));
     *curr_sst = create_sst_empty();
     generate_unique_sst_filename(curr_sst->file_name, MAX_F_N_SIZE, job->end_level);
-    curr_sst->block_start = GLOB_OPTS.SST_TABLE_SIZE;
+    curr_sst->block_start = dest_l_s ;
+    
 
     db_FILE * curr_file = dbio_open(curr_sst->file_name, 'w');
     set_context_buffer(curr_file, dest_buffer);
@@ -275,12 +279,12 @@ int merge_tables(byte_buffer *dest_buffer, byte_buffer * compression_buffer, com
             merge_data * this_block_max = get_last(entrys);
             f_cpy(&curr_sst->max, &this_block_max->key);
         }
-        if (sst_offset_tracker + entry_len(best_entry) >= GLOB_OPTS.SST_TABLE_SIZE || (block_b_count == 0 && sst_offset_tracker == GLOB_OPTS.SST_TABLE_SIZE)){
+        if (sst_offset_tracker + entry_len(best_entry) >= dest_l_s  || (block_b_count == 0 && sst_offset_tracker == dest_l_s )){
             
             complete_block(curr_sst, current_block, block_b_count);
             reset_block_counters(&block_b_count, &sst_b_count);
             
-            write_blocks_to_file(dest_buffer,compression_buffer,dict_buffer, curr_sst, entrys, curr_file);
+            write_blocks_to_file(dest_buffer,compression_buffer,dict_buffer, curr_sst, entrys, curr_file, dest_l_s);
            
             merge_data *  max = get_last(entrys);
             if (max == NULL){
@@ -291,7 +295,7 @@ int merge_tables(byte_buffer *dest_buffer, byte_buffer * compression_buffer, com
             }
             process_sst(dest_buffer, curr_sst, curr_file, job, sst_b_count);
             *curr_sst = create_sst_empty();
-            curr_sst->block_start=  GLOB_OPTS.SST_TABLE_SIZE;
+            curr_sst->block_start=  dest_l_s ;
            
             block_b_count = 2;
             entrys->len = 0;
@@ -319,7 +323,7 @@ int merge_tables(byte_buffer *dest_buffer, byte_buffer * compression_buffer, com
         reset_block_counters(&block_b_count, &sst_b_count);
     }
     if (entrys->len > 0) {
-        write_blocks_to_file(dest_buffer,compression_buffer,dict_buffer, curr_sst, entrys, curr_file);
+        write_blocks_to_file(dest_buffer,compression_buffer,dict_buffer, curr_sst, entrys, curr_file, dest_l_s);
         merge_data * max = get_last(entrys);
         f_cpy(&curr_sst->max, &max->key);
         process_sst(dest_buffer, curr_sst, curr_file, job, sst_b_count);
@@ -417,10 +421,10 @@ void compact_one_table(compact_manager * cm, compact_job_internal job,  sst_f_in
         return;
 
     }
-   
+    uint64_t dest_l_s = get_opt_file_s(job.end_level);
     byte_buffer* dict_buffer = request_struct(cm->dict_buffer_pool);
-    byte_buffer * dest_buffer = select_buffer(GLOB_OPTS.SST_TABLE_SIZE);
-    byte_buffer * compression_buffer=  select_buffer(GLOB_OPTS.SST_TABLE_SIZE);
+    byte_buffer * dest_buffer = select_buffer(dest_l_s );
+    byte_buffer * compression_buffer=  select_buffer(dest_l_s );
     int result = merge_tables (dest_buffer,compression_buffer, &job, dict_buffer, cm->c);
     if (result == INVALID_DATA){
         return_struct(cm->dict_buffer_pool, dict_buffer, &reset_buffer);

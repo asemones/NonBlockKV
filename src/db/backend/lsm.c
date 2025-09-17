@@ -121,10 +121,10 @@ storage_engine * create_engine(char * file, char * bloom_file){
     engine->error_code = OK;
     engine->cm_ref = NULL;
     sst_man_sst_inf_cf sst;
-    sst.bits_per_key = GLOB_OPTS.bits_per_key;
+
+    sst.levels = GLOB_OPTS.options;
+
     sst.block_index_size = GLOB_OPTS.BLOCK_INDEX_SIZE;
-    sst.partition_size = GLOB_OPTS.partition_size;
-    sst.sst_table_size =  GLOB_OPTS.SST_TABLE_SIZE;
     engine->mana = create_manager(sst, GLOB_OPTS.index_cache_mem);
     engine->v = create_v_log(1024 * 1024 * 16);
     return engine;
@@ -426,7 +426,7 @@ int flush_table(mem_table *table, storage_engine * engine){
 
     meta_data * meta = engine->meta;
     
-    sst_f_inf *sst = allocate_sst(&engine->mana,table->num_pair);
+    sst_f_inf *sst = allocate_sst(&engine->mana,table->num_pair,0);
     //*sst =  create_sst_filter(table->filter);
     byte_buffer * buffer = select_buffer(GLOB_OPTS.MEM_TABLE_SIZE);
     if (table->bytes <= 0) {

@@ -2,8 +2,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <stdint.h>
 #pragma  once
-
+#define MAX_LEVEL_SETTINGS 20
 /**
  * @brief Configuration options for the database
  * @struct option
@@ -29,6 +30,13 @@
  * @param compress_level Compression level. set this to less than -5 to disable compression completely
  * @param num_cache Number of cache shards
  */
+typedef struct level_options{
+    uint64_t file_size;
+    uint64_t bits_per_key;
+    uint64_t partition_size;
+    bool cached;
+}level_options;
+
 typedef struct option{
     size_t SST_TABLE_SIZE;
     size_t MEM_TABLE_SIZE;
@@ -57,6 +65,7 @@ typedef struct option{
     int bits_per_key;
     int partition_size; /* in terms of block index data*/
     long value_log_threshold;
+    level_options options[ MAX_LEVEL_SETTINGS];
     long v_l_large_threshold;
 }option;
 
@@ -69,6 +78,7 @@ extern option GLOB_OPTS;
  * @brief Sets default configuration options for production use
  * @param opt Pointer to the options structure to initialize
  */
+void set_level_options_lin(level_options * opts, int num, uint64_t file_size, uint64_t bits_per_key,  uint64_t partition_size);
 static inline void set_defaults(option * opt){
     opt->SST_TABLE_SIZE = 64 * 1024 * 1024;
     opt->MEM_TABLE_SIZE = 64 * 1024 * 1024;
@@ -96,7 +106,7 @@ static inline void set_defaults(option * opt){
     opt->partition_size = 16384;
     opt->value_log_threshold = 512 ;
     opt->v_l_large_threshold = 1024 * 128;
-
+    set_level_options_lin(opt->options, 7, opt->SST_TABLE_SIZE, opt->bits_per_key, opt->partition_size);
 }
 static inline void set_debug_defaults(option * opt){
     opt->SST_TABLE_SIZE =  256* 1024;
@@ -127,6 +137,13 @@ static inline void set_debug_defaults(option * opt){
     opt->partition_size = 16384;
     opt->value_log_threshold = 512;
     opt->v_l_large_threshold = 1024 * 64;
+    set_level_options_lin(opt->options, 7, opt->SST_TABLE_SIZE, opt->bits_per_key, opt->partition_size);
+}
+static inline uint64_t get_bits_per_key(uint64_t level){
+    return GLOB_OPTS.options[level].bits_per_key;
+}
+static inline uint64_t get_opt_file_s(uint64_t level){
+    return GLOB_OPTS.options[level].file_size;
 }
 
 

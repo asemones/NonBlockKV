@@ -59,4 +59,4 @@ These designs offer a balance of reduced write amplification without hurting rea
 
 
 # References: 
-Several papers serve as inspiration for the design:  https://arxiv.org/abs/2412.03131 https://dl.acm.org/doi/10.1145/3472883.3487012, https://www.vldb.org/pvldb/vol18/p4295-haas.pdf, https://db.in.tum.de/~leis/papers/leanstore.pdf https://www.vldb.org/pvldb/vol16/p2090-haas.pdf
+Several papers serve as inspiration for the design:  https://arxiv.org/abs/2412.03131 https://dl.acm.org/doi/10.1145/3472883.3487012, https://www.vldb.org/pvldb/vol18/p4295-haas.pdf, https://db.in.tum.de/~leis/papers/leanstore.pdf https://www.vldb.org/pvldb/vol16/p2090-haas.pdf https://scholar.harvard.edu/files/stratos/files/monkeykeyvaluestore.pdf

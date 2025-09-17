@@ -4,7 +4,7 @@
 /*shortcut computation. table size * list len since most tables will be the same size, besides maybe the last one*/
 bool check_for_compact(list * level, int lvl){
     if (lvl > 0 ){
-        return level->len * GLOB_OPTS.SST_TABLE_SIZE > get_level_size(lvl);
+        return level->len * get_opt_file_s(lvl) > get_level_size(lvl);
     }
 
     return level->len > GLOB_OPTS.NUM_FILES_COMPACT_ZER0;

@@ -18,7 +18,8 @@ db_shard db_shard_create(){
     set_debug_defaults(&GLOB_OPTS);
     io_config  io;
     const double overflow_multplier = 1.2;
-    io.big_buf_s = GLOB_OPTS.SST_TABLE_SIZE * overflow_multplier;
+    /*come back to this*/
+    io.big_buf_s = 0;
     io.max_concurrent_io = 12000;
     io.huge_buf_s  = GLOB_OPTS.MEM_TABLE_SIZE * overflow_multplier;
     io.small_buff_s = GLOB_OPTS.BLOCK_INDEX_SIZE;
