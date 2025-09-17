@@ -49,8 +49,9 @@ bb_filter sst_make_part_bloom(uint64_t num_keys, const sst_man_sst_inf_cf *confi
     return f;
 }
 sst_f_inf *  allocate_sst(sst_manager * mana,  uint64_t num_keys){
-    sst_f_inf * base;
-    uint64_t num_blocks = ceil_int_div(base->length, mana->config.block_index_size);
+    sst_f_inf * base = NULL;
+    /*this is bad form; only allows for one sst size*/
+    uint64_t num_blocks = ceil_int_div(mana->config.sst_table_size, mana->config.block_index_size);
     char* mem_block = slalloc(&mana->sst_memory.cached, mana->sst_memory.cached.pagesz);
     base = mem_block;
     mem_block += sizeof(*base);

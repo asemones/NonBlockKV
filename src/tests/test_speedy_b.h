@@ -100,9 +100,9 @@ void test_full_filter_add_and_contain(void) {
     test_filter.data = filter_data;
 
     // FIX: Use designated initializers to avoid ambiguity and warnings.
-    f_str key1 = {.entry = "hello", .len = 5};
-    f_str key2 = {.entry = "world", .len = 5};
-    f_str key_absent = {.entry = "not_present", .len = 11};
+    f_str key1 = {.mem = "hello", .len = 5};
+    f_str key2 = {.mem = "world", .len = 5};
+    f_str key_absent = {.mem = "not_present", .len = 11};
 
     TEST_ASSERT_FALSE(bb_filter_may_contain(&test_filter, key1));
     TEST_ASSERT_FALSE(bb_filter_may_contain(&test_filter, key2));

@@ -284,8 +284,8 @@ int write_db_entry(byte_buffer * b, void * element){
         return -1;
     }
     int size= 0;
-    size+= write_db_unit(b, m->key);
-    size+= write_db_unit(b, m->value);
+    size+= write_disk_format(b, m->key);
+    size+= write_disk_format(b, m->value);
     return size;
 }
 void free_iter_db_resources(aseDB_iter * iter){

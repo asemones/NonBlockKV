@@ -16,6 +16,9 @@
 
 
 /*sets the cm with the most re*/
+int sst_deep_copy(sst_f_inf * master, sst_f_inf * copy){
+    return 0;
+}
 void set_cm_sst_files(meta_data * meta, compact_manager * cm){
     for (int i =0; i < MAX_LEVELS; i++){
         if (meta->sst_files[i] == NULL) continue;
@@ -29,6 +32,7 @@ void set_cm_sst_files(meta_data * meta, compact_manager * cm){
         }
     }
 }
+
 int compare_jobs(const void * job1, const void * job2){
     const compact_job_internal * job_1 = job1;
     const compact_job_internal * job_2 = job2;

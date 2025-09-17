@@ -18,26 +18,26 @@
  */
 
 typedef struct f_str{
+    
     union 
     {
         struct{
             uint32_t len;
-            char prfx [4];
+            char prfx [F_PRFX_LEN];
             void * mem;
         };
         struct{
-            uint32_t len;
-            char sso[12];
+            uint32_t __padding;
+            char sso[F_SSO_LEN];
         };
-        struct
-        {
-            uint32_t len;
+        struct {
+            uint64_t _padding;
             void * entry;
         };
-        
     };
-}f_str;
+  
 
+}f_str;
 
 
 #define F_SSO_BIT  0x80000000u
@@ -94,7 +94,7 @@ static inline int get_kv_overhead_short(){
     uint16_t size_of_end_ptr =  sizeof(uint16_t);
     return size_of_end_ptr + size_of_len;
 }
-uint64_t get_mem_tbl_size(f_str key, f_str value, uint64_t thresh);
+uint64_t get_mem_tbl_size(f_str key, f_str value);
 f_str api_create(void * data, uint64_t len);
 void cleanse(f_str * external_input);
 f_str make_fstr(char * cpy, uint32_t len);

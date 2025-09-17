@@ -47,7 +47,6 @@ int buffer_resize(byte_buffer * b, size_t min_size){
     return b->max_bytes;
 }
 int write_buffer(byte_buffer * buffer, void* data, size_t size){
-    int ret = 0;
     memcpy(&buffer->buffy[buffer->curr_bytes], data, size);
     buffer->curr_bytes += size;
     return 0;

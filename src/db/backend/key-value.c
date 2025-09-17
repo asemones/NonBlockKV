@@ -116,10 +116,10 @@ int write_fstr(byte_buffer *b, const f_str one) {
     if (len == 0) return 0;
 
     if (len <= F_SSO_LEN) {
-        write_buffer(b, one.sso, len);
+        write_buffer(b, (void*)one.sso, len);
         return 0;
     }
-    write_buffer(b, one.prfx, F_PRFX_LEN);
+    write_buffer(b, (void*)one.prfx, F_PRFX_LEN);
     write_buffer(b, one.mem, len - F_PRFX_LEN);
     return 0;
 }
@@ -182,6 +182,9 @@ f_str f_str_alloc(char * later_mem){
     str.mem =  later_mem;
     str.len  = 0;
     return str;
+}
+uint64_t get_mem_tbl_size(const f_str key, const f_str value){
+    return key.len + value.len + get_kv_overhead_short();
 }
 f_str f_set(const char * str, uint16_t len){
     f_str one;

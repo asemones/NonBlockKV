@@ -211,5 +211,8 @@ size_t NAME##_size(const NAME *m) {                                       \
 size_t NAME##_capacity(const NAME *m) {                                   \
     return m ? m->cap : 0;                                                \
 }
-
+int compare_kv(kv *k1, kv *k2);
+int compare_kv_v(const void * kv1, const void * kv2);
+kv KV(void* k, void* v);
+kv* dynamic_kv(void* k, void* v);
 #endif

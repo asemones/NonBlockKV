@@ -35,8 +35,8 @@ void test_db_write_read_single(void) {
     db_shard shard = db_shard_create();
     TEST_ASSERT_NOT_NULL(shard.lsm);
 
-    f_str key = {.entry = "testkey1", .len = strlen("testkey1") + 1};
-    f_str value = {.entry = "testvalue1", .len = strlen("testvalue1") + 1};
+    f_str key = {.mem = "testkey1", .len = strlen("testkey1") + 1};
+    f_str value = {.mem = "testvalue1", .len = strlen("testvalue1") + 1};
 
     submit_and_wait(&shard, key, value);
 

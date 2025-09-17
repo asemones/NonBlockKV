@@ -13,7 +13,7 @@ ZERO memcpy, dma, registered buffers. Kernel polling in an event loop with callb
 . extenability for io statistics and rate limiting. single point of IO for majority of IO, excluding metadata reads at the 
 start-no need to overcomplicate. 
 */
-typedef void (*aio_callback)(void *arg);
+typedef void (*aio_callback)(void * arg, enum post_io_behavior b);
 __thread struct io_manager * man;
 int setup_io_uring(struct io_uring *ring, int queue_depth) {
     int ret = io_uring_queue_init(queue_depth, ring, 0);

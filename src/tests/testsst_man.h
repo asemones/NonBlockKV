@@ -42,8 +42,8 @@ static sst_f_inf * make_dummy_sst(sst_manager * m, const char * min, const char 
     else{
         sst=  allocate_non_l0(m, 100, level);
     }
-    f_str r_min = make_fstr(min, strlen(min));
-    f_str r_max = make_fstr(min, strlen(max));
+    f_str r_min = make_fstr((char*)min, strlen(min));
+    f_str r_max = make_fstr((char*)min, strlen(max));
 
     f_cpy(&sst->max, &r_max);
     f_cpy(&sst->min, &r_min);
@@ -55,8 +55,8 @@ static sst_f_inf * make_dummy_sst(sst_manager * m, const char * min, const char 
 }
 static void quick_verify_sst(sst_f_inf * cand, sst_f_inf *expected){
     TEST_ASSERT_NOT_NULL(cand);
-    TEST_ASSERT_INT_EQUAL(f_cmp(cand->min, expected->min), 0);
-    TEST_ASSERT_INT_EQUAL(f_cmp(cand->max, expected->max), 0);
+    TEST_ASSERT_EQUAL_INT(f_cmp(cand->min, expected->min), 0);
+    TEST_ASSERT_EQUAL_INT(f_cmp(cand->max, expected->max), 0);
 }
 static void test_sst_add_remove_levels(int levels){
     sst_man_sst_inf_cf config = default_test_config();

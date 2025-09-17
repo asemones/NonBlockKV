@@ -32,7 +32,7 @@ enum post_io_behavior{
     FORK_JOIN
 };
 
-typedef void (*aio_callback)(void *arg);
+typedef void (*aio_callback)(void * arg, enum post_io_behavior b);
 
 typedef struct io_batch_tuner{
     uint64_t full_flush_runs;

@@ -117,7 +117,7 @@ block_index * block_from_stream(byte_buffer * stream, block_index * index){
 }
 f_str block_key_decode(const char * block_start, uint16_t * offsets, uint16_t ind){
     f_str one;
-    one.entry = block_start + offsets[ind] + sizeof(uint16_t);
+    one.entry = (void*)block_start + offsets[ind] + sizeof(uint16_t);
     one.len = *(uint16_t*)block_start + offsets[ind];
     return one;
 }
@@ -137,8 +137,8 @@ merge_data decode_next_pair_iter(const char * block_start, uint16_t * offsets, u
     f_str key= block_key_decode(block_start, offsets, ind_to_get);
     f_str value = decode_val_from_k(key);
     merge_data ret;
-    ret.key = format_for_in_mem(ret.key);
-    ret.value = format_for_in_mem(ret.value);
+    ret.key = format_for_in_mem(key);
+    ret.value = format_for_in_mem(value);
     ret.index = ind_to_get;
     return ret;
 }

@@ -10,6 +10,7 @@ we only have 14 bytes of memory space
 so how can this be reduced?
 */
 #include "value_log.h"
+LPH_DEFINE(v_log_tbl, v_log_file);
 #define ERROR 0
 static void create_fn(char * fn, uint64_t no){
     char buf [16];
@@ -45,7 +46,7 @@ static uint64_t new_value(counter_t *ctr) {
 static int read_v_log_info(){
     return 0;
 }
-int v_log_update(){
+int v_log_update(value_log * v){
     return 0;
 }
 value_log create_v_log(uint64_t fs){
@@ -139,7 +140,7 @@ int v_log_delete(uint64_t file_id, v_log_tbl * tbl, uint64_t val_len){
     if (!v_log_tbl_get(tbl, file_id, file)) return -1;
     file->deleted_b += val_len;
     v_log_tbl_put(tbl, file_id, *file, NULL);
-    v_log_update();
+    v_log_update(tbl);
     return 0;
 
 }

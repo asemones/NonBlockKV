@@ -29,6 +29,7 @@ mem_table * create_table(){
     table->ref_count = 0;
     return table;
 }
+
 void free_db_resource(db_resource * resource){
     if (resource->src == INVALID) return;
     if (resource->src == CACHE){
@@ -76,7 +77,7 @@ void clear_table(mem_table * table){
      table->ref_count = 0;
 }
 static uint64_t  increase_t_size(f_str k, f_str v,  value_log * va){
-    uint64_t total = get_mem_tbl_size(k, v, va->medium_thresh);
+    uint64_t total = get_mem_tbl_size(k, v);
     return total;
 }
 storage_engine * create_engine(char * file, char * bloom_file){
@@ -150,7 +151,7 @@ int handle_annoying_ass_fucking_edge_case_fuck(storage_engine* engine ,f_str key
         if (table->immutable){
             continue;
         }
-        if (table->bytes + get_mem_tbl_size(key, value, engine->v.medium_thresh) < GLOB_OPTS.MEM_TABLE_SIZE){
+        if (table->bytes + get_mem_tbl_size(key, value) < GLOB_OPTS.MEM_TABLE_SIZE){
             break;
         }
     }
@@ -173,7 +174,7 @@ int write_record(storage_engine* engine ,f_str key, f_str value){
         aco_yield();
     }
     // Check if the active table needs to be rotated
-    if (table->bytes + get_mem_tbl_size(key, value, engine->v.medium_thresh) >= GLOB_OPTS.MEM_TABLE_SIZE) {
+    if (table->bytes + get_mem_tbl_size(key, value) >= GLOB_OPTS.MEM_TABLE_SIZE) {
         return handle_annoying_ass_fucking_edge_case_fuck(engine, key, value);
     }
     insert_list(table->skip, key, value);
@@ -198,10 +199,10 @@ static db_resource get_key_from_block(shard_controller cach, sst_f_inf * sst, bl
     if (k_v_array_index== -1){
         return return_bad_result();
     }
-    f_str key = block_key_decode(c.buf->buffy, c.ar, k_v_array_index);
+    f_str found_key = block_key_decode(c.buf->buffy, c.ar, k_v_array_index);
     db_resource src;
     src.resource = index->page;
-    src.value= decode_val_from_k(key);
+    src.value= decode_val_from_k(found_key);
     src.src = CACHE;
     return src;   
 }
