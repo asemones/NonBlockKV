@@ -1,4 +1,4 @@
-# dbase
+# NonBlockKV
 This is an async native LSM tree built in C from a first principles perspective. It focuses on maxiumum throughput with nvme ssd on OLTP write skewed workloads without sacrificing reads. It is under active development.
 
 # note
