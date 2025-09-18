@@ -18,14 +18,14 @@ db_FILE * clone_ctx(db_FILE * ctx){
     ctx_cp->callback_arg = task;
     return ctx_cp;
 }
-void serialize_wal_metadata(WAL *w, byte_buffer *b) {
+static void serialize_wal_metadata(WAL *w, byte_buffer *b) {
     reset_buffer(b);
     write_buffer(b, (char*)&w->total_len, sizeof(w->total_len));
     write_buffer(b, (char*)&w->segments_manager.current_segment_idx, sizeof(w->segments_manager.current_segment_idx));
     write_buffer(b, (char*)&w->segments_manager.segments[w->segments_manager.current_segment_idx].current_size, sizeof(size_t));
 }
 
-bool deserialize_wal_metadata(WAL *w, byte_buffer *b) {
+static bool deserialize_wal_metadata(WAL *w, byte_buffer *b) {
     read_buffer(b, (char*)&w->total_len, sizeof(w->total_len));
     read_buffer(b, (char*)&w->segments_manager.current_segment_idx, sizeof(w->segments_manager.current_segment_idx));
     read_buffer(b, (char*)&w->segments_manager.segments[w->segments_manager.current_segment_idx].current_size, sizeof(size_t));
@@ -40,7 +40,7 @@ bool deserialize_wal_metadata(WAL *w, byte_buffer *b) {
     return true;
 }
 
-int rotate_wal_segment(WAL *w) {
+static int rotate_wal_segment(WAL *w) {
     WAL_segments_manager *mgr = &w->segments_manager;
     int current_idx = mgr->current_segment_idx;
     w->rotating = true;
@@ -53,7 +53,7 @@ int rotate_wal_segment(WAL *w) {
     mgr->current_segment_idx = next_idx;
     return 0;
 }
-int read_segement_header(byte_buffer * stream, char * time) {
+static int read_segement_header(byte_buffer * stream, char * time) {
     char * start = go_nearest_v(stream, ':');
     if (start == NULL) return -1;
     start ++; /*skip a space*/
@@ -63,7 +63,7 @@ int read_segement_header(byte_buffer * stream, char * time) {
     read_buffer(stream, time, size);
     return size;
 }
-int flush_wal_buffer(WAL *w, f_str k, f_str v) {
+static int flush_wal_buffer(WAL *w, f_str k, f_str v) {
     if (!w || !w->wal_buffer || w->wal_buffer->curr_bytes == 0) {
         return 0;
     }
@@ -112,7 +112,7 @@ int flush_wal_buffer(WAL *w, f_str k, f_str v) {
     }
     return flush_size;
 }
-void get_wal_fn(char * buf, int idx){
+static void get_wal_fn(char * buf, int idx){
     sprintf(buf, "WAL_SEG_%d.bin", idx);
 }
 WAL* init_WAL(byte_buffer *b) {
@@ -136,8 +136,8 @@ WAL* init_WAL(byte_buffer *b) {
         
         db_FILE *file_ctx_for_clone = dbio_open(seg->filename, 'r');
         if (!file_ctx_for_clone || file_ctx_for_clone->desc.fd < 0) {
-            dbio_close(file_ctx_for_clone); // Close potentially invalid context
-            file_ctx_for_clone = dbio_open(seg->filename, 'w'); // Try creating/truncating
+            dbio_close(file_ctx_for_clone);
+            file_ctx_for_clone = dbio_open(seg->filename, 'w');
         }
 
         // Ensure the open succeeded
@@ -203,7 +203,7 @@ WAL* init_WAL(byte_buffer *b) {
     int len = strlen(buf);
     current_segment->current_size +=write_buffer(w->wal_buffer, &len, sizeof(len));
     current_segment->current_size +=write_buffer(w->wal_buffer, buf, len);
-    // printf("WAL initialized. Active segment index: %d\n", mgr->current_segment_idx); // Reduced verbosity
+    
     return w;
 }
 int write_WAL(WAL *w, f_str key, f_str value) {
@@ -308,5 +308,4 @@ void kill_WAL(WAL *w) {
         w->wal_buffer = NULL;
     }  
     free(w);
-    // printf("WAL killed.\n"); // Reduced verbosity
 }

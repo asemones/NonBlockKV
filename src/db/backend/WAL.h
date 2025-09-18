@@ -3,7 +3,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdbool.h> // For bool type
+#include <stdbool.h> 
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/types.h>
@@ -20,9 +20,9 @@
 #include "../../util/multitask_primitives.h"
 #include "../../util/stringutil.h"
 
-#define NUM_WAL_SEGMENTS 3 // Example: Number of WAL segments
-#define WAL_SEGMENT_SIZE (GLOB_OPTS.WAL_SIZE) // Use existing option for size per segment
-#define MAX_WAL_SEGMENT_FN_LEN 32 // Max length for segment filenames like "WAL_SEG_0.bin"
+#define NUM_WAL_SEGMENTS 3 
+#define WAL_SEGMENT_SIZE (GLOB_OPTS.WAL_SIZE) 
+#define MAX_WAL_SEGMENT_FN_LEN 32 
 
 typedef struct WAL_segment {
     char filename[MAX_WAL_SEGMENT_FN_LEN]; 
@@ -31,13 +31,11 @@ typedef struct WAL_segment {
     db_FILE * model;         
 } WAL_segment;
 
-/**
- * @brief Manages the set of WAL segments.
- */
+
 typedef struct WAL_segments_manager {
-    WAL_segment segments[NUM_WAL_SEGMENTS]; // Array of WAL segments
-    int current_segment_idx;                // Index of the currently active segment (0 to NUM_WAL_SEGMENTS-1)
-    size_t segment_capacity;                // Max size for each segment (WAL_SEGMENT_SIZE)
+    WAL_segment segments[NUM_WAL_SEGMENTS];
+    int current_segment_idx;                
+    size_t segment_capacity;               
     int num_segments;
 } WAL_segments_manager;
 
@@ -51,20 +49,11 @@ typedef struct WAL {
     int flush_cadence;  
 } WAL;
 
-WAL* init_WAL(byte_buffer *b); // Signature kept as original
+WAL* init_WAL(byte_buffer *b); 
 
-int write_WAL(WAL *w, f_str key, f_str value); // Signature kept as original
+int write_WAL(WAL *w, f_str key, f_str value);
 
-void kill_WAL(WAL *w);// Signature kept as original
-
-void serialize_wal_metadata(WAL *w, byte_buffer *b);
-
-bool deserialize_wal_metadata(WAL *w, byte_buffer *b);
-
-int rotate_wal_segment(WAL *w);
+void kill_WAL(WAL *w);
 
 
-int flush_wal_buffer(WAL *w, f_str k, f_str v);
-
-void get_wal_fn(char* buf, int idx);
-#endif // WAL_H
+#endif 
