@@ -60,8 +60,8 @@ sst_f_inf *  allocate_sst(sst_manager * mana,  uint64_t num_keys, int level){
     base->block_indexs->cap = num_blocks;
     base->min = f_str_alloc(mem_block);
     base->max = f_str_alloc(mem_block + MAX_KEY_SIZE);
-    base->file_name = mem_block + (MAX_KEY_SIZE * 2);
     base->filter = sst_make_bloom(num_keys, 2, &mana->config.levels[level]);
+    base->level = level;
     return base;
 }
 sst_partition_ind* allocate_part(uint64_t num_keys, uint64_t num, sst_manager* mana, int level) {
@@ -93,6 +93,7 @@ sst_f_inf * allocate_non_l0(sst_manager * mana, uint64_t num_keys, int level){
     base->sst_partitions->arr = allocate_part(num_keys, parts_per, mana, level);
     base->sst_partitions->cap = parts_per;
     base->sst_partitions->len = parts_per > 0 ? parts_per : 0;
+    base->level = level;
     return base;
 }
 sst_f_inf * allocate_level(sst_manager * mana, uint64_t num_keys, int level){
@@ -150,7 +151,7 @@ uint64_t calculate_cached_size(const sst_man_sst_inf_cf *config, int level){
     uint64_t blocks_per_sst = ceil_int_div(config->levels[level].file_size, config->block_index_size);
     uint64_t size_from_blocks = blocks_per_sst * block_ind_size();
     uint64_t list_size = sizeof(list);
-    uint64_t base_size = MAX_KEY_SIZE * 2 + MAX_F_N_SIZE + sizeof(sst_f_inf);
+    uint64_t base_size = MAX_KEY_SIZE * 2 + sizeof(sst_f_inf);
     return list_size + base_size + size_from_blocks;
 }
 static uint64_t get_num_parts(const sst_man_sst_inf_cf *config, int level){
@@ -159,7 +160,7 @@ static uint64_t get_num_parts(const sst_man_sst_inf_cf *config, int level){
 static uint64_t calculate_non_cached_size(const sst_man_sst_inf_cf *config, int level){
     uint64_t parts_per_sst = get_num_parts(config, level);
     uint64_t list_size = sizeof(list);
-    uint64_t base_size = MAX_KEY_SIZE * 2 + MAX_F_N_SIZE + sizeof(sst_f_inf);
+    uint64_t base_size = MAX_KEY_SIZE * 2 + sizeof(sst_f_inf);
     uint64_t part_size = sizeof(sst_partition_ind) + 40;
     return (parts_per_sst * part_size) + base_size + list_size;
 }

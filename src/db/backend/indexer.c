@@ -20,7 +20,6 @@ sst_f_inf create_sst_empty(){
     init_sst_compr_inf(&file.compr_info, NULL);
     gettimeofday(&file.time, NULL);
     file.compressed_len = 0;
-    file.file_name = arena_alloc(file.mem_store, MAX_F_N_SIZE);
     return file;
 
 }

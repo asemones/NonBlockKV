@@ -73,10 +73,11 @@ typedef struct sst_partition_ind{
 }sst_partition_ind;
 
 typedef struct sst_file_info{
-    char * file_name; /*accessed on io ops*/
+    char file_name[MAX_F_N_SIZE]; /*accessed on io ops*/
     size_t iter_ref_count; /*accessed on pins*/
     size_t length;
     size_t compressed_len;
+    uint64_t level;
     union{
         list *block_indexs; //type:  block_index, l_0 or maybe l1 too?
         list* sst_partitions; // Reverted back to pointer
