@@ -34,7 +34,7 @@ This project represents a 1 year self directed process learning storage engines 
 # Stretch Goals
 - [ ] io_uring raw block device + k poll mode
 - [ ] Learned indexes implementation
-
+- [ ] Invent searchable immutable compression format
 
 # Core features
 Below are some explanations on system engineering choices designed to improve sota. 

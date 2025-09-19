@@ -78,6 +78,12 @@ typedef struct sst_file_info{
     size_t length;
     size_t compressed_len;
     uint64_t level;
+    size_t block_start;
+    size_t part_start;
+    bool marked;
+    bool in_cm_job;
+    bool use_dict_compression; 
+    struct timeval time;
     union{
         list *block_indexs; //type:  block_index, l_0 or maybe l1 too?
         list* sst_partitions; // Reverted back to pointer
@@ -86,14 +92,8 @@ typedef struct sst_file_info{
     
     f_str max;/*accessed when searching*/
     f_str min;/*accessed when searching*/
-    struct timeval time;
-    size_t block_start;
-    size_t part_start;
     bloom_filter * filter;
     arena * mem_store; /*REMOVE*/
-    bool marked;
-    bool in_cm_job;
-    bool use_dict_compression; 
     sst_cmpr_inf compr_info;
 
 }sst_f_inf;

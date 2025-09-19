@@ -414,7 +414,7 @@ uint64_t sst_md_str(const sst_f_inf *s){
     uint64_t n = 0;
 
     // 1) file_name, NUL-terminated
-    n += (uint64_t)strlen(s->file_name) + 1;
+    n += MAX_F_N_SIZE;
     n += f_str_len_mem_disk(s->max);
     n += f_str_len_mem_disk(s->min);
 

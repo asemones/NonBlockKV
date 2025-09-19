@@ -12,17 +12,45 @@ int man_f_add(manifest* w,  sst_f_inf * val){
 int man_f_del(manifest* w, sst_f_inf * val){
     f_str sst_fat_ptr;
     sst_fat_ptr.mem = val;
-    sst_fat_ptr.len = ;
+    sst_fat_ptr.len = sst_md_str(val);
     return write_md_generic(w, FILE_DELTE, sst_fat_ptr);
 }
 int man_f_commit(manifest* w){
     return flush_manifest_buffer(w, MD_COMMIT,f_str_empty());
 }
-static uint64_t add_to_buffer_generic(byte_buffer * b, manifest_cmd type, f_str key){
+static void write_sst_strs(byte_buffer * b, sst_f_inf * in){
+    write_buffer(b, in->file_name, MAX_F_N_SIZE);
+    write_fstr(b, in->min);
+    write_fstr(b,in->max);
     
 }
-static uint64_t add_to_buffer( byte_buffer * b, manifest_cmd type,f_str key){
-    uint64_t ret=  write_byte(b, type);
+static void seralize_sst_md_all(byte_buffer * b, sst_f_inf * in){
+    write_sst_strs(b, in);
+}
+static uint64_t add_to_buffer_f_add(byte_buffer * b, sst_f_inf * in){
+    seralize_sst_md_all(b, in);
+    return 0;
+}   
+static uint64_t add_to_buffer_f_delete(byte_buffer * b, sst_f_inf * in){
+    write_sst_strs(b, in);
+    return 0;
+}
+static uint64_t add_to_buffer_generic(byte_buffer * b, manifest_cmd type, f_str key){
+    write_byte(b, type);
+
+    switch(type){
+        case FILE_ADD:
+            add_to_buffer_f_add(b,  (sst_f_inf*)key.mem);
+            return key.len;
+        case FILE_DELTE:
+            add_to_buffer_f_delete(b, (sst_f_inf*)key.mem);
+            return key.len;
+        default:
+            return add_to_buffer(b,key);
+    }
+}
+static uint64_t add_to_buffer( byte_buffer * b,f_str key){
+    uint64_t ret =0;
     ret += write_fstr(b, key);
     return ret;
 }
@@ -116,7 +144,7 @@ static int flush_manifest_buffer(manifest *w, manifest_cmd type, f_str k) {
         exit(EXIT_FAILURE);
     }
     
-    current_segment->current_size += add_to_buffer(w->manifest_buffer, type, k);
+    current_segment->current_size += add_to_buffer_generic(w->manifest_buffer, type, k);
     
     set_context_buffer(file_ctx, buffer_to_flush);
 
@@ -271,7 +299,7 @@ static int write_md_generic(manifest *w, manifest_cmd type,f_str key) {
         return 0;
     }
     int written_to_buffer = 0;
-    ret = add_to_buffer(w->manifest_buffer, type, key);
+    ret =  add_to_buffer_generic(w->manifest_buffer, type, key);
     if (ret < 0) {
         fprintf(stderr, "Error writing key to manifest buffer\n");
         return FAILED_TRANSCATION;
