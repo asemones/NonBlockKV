@@ -4,9 +4,10 @@
 #include "../../ds/list.h"
 #include "../../ds/circq.h"
 #include "../../util/maths.h"
+#include "mono_counter.h"
 #ifndef SST_MANAGER_H
 #define  SST_MANAGER_H
-
+#define SST_F_XT "nbl"
 typedef struct partiton_cache_element{
     uint64_t off;
     uint64_t en;
@@ -43,6 +44,7 @@ typedef struct sst_manager{
     uint64_t size_per_block;
     uint64_t parts_per;
     sst_man_sst_inf_cf config;
+    counter_t name_gen;
 }sst_manager;
 sst_manager create_manager(sst_man_sst_inf_cf config, uint64_t mem_size);
 void add_sst(sst_manager * mana, sst_f_inf* sst, int level);
@@ -57,4 +59,5 @@ size_t find_block(list * block_indexs, const f_str key);
 size_t find_sst_file(list *sst_files, f_str key);
 sst_f_inf * get_sst(sst_manager * mana, f_str targ, int level);
 sst_f_inf *  allocate_sst(sst_manager * mana,  uint64_t num_keys, int level);
+void gen_sst_fn(sst_manager * mana, const char * out);
 #endif

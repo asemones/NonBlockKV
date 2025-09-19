@@ -20,6 +20,7 @@
 #include "../../ds/structure_pool.h" 
 #include "../../util/multitask_primitives.h"
 #include "../../util/stringutil.h"
+#include "indexer.h"
 
 #define NUM_MD_SEG 2
 #define MAX_WAL_SEGMENT_FN_LEN 32 
@@ -49,6 +50,7 @@ typedef struct manifest {
     int replay_end;  
 } manifest;
 typedef enum manifest_cmd{
+    KILL_LOG,
     FILE_ADD,
     FILE_DELTE,
     MD_COMMIT,

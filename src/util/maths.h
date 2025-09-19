@@ -74,8 +74,20 @@ static inline uint64_t get_ns(void){
     #ifndef __x86_64__
     struct timespec ts1;
     clock_gettime(CLOCK_MONOTONIC, &ts1);
-    return ts1.tv_nsec + ts1.tv_sec * NS_TO_S
+    return ts1.tv_nsec + ts1.tv_sec * NS_TO_S;
     #endif
+}
+
+static inline uint64_t now_sec(void) {
+#if defined(CLOCK_MONOTONIC_COARSE)
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC_COARSE, &ts); 
+    return (uint64_t)ts.tv_sec;
+#else
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (uint64_t)ts.tv_sec;
+#endif
 }
 int has_been_us(uint64_t start_ns, uint64_t delta, uint64_t * out_curr_time);
 int has_been_ms(uint64_t start_ns, uint64_t delta, uint64_t * out_curr_time);

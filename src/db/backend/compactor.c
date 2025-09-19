@@ -58,7 +58,7 @@ compact_manager * init_cm(meta_data * meta, shard_controller * c){
     manager->check_meta_cond = false;
     manager->exit = false;
     manager->lvl0_job_running= false;
-   
+    
     return manager;
 }
 
@@ -214,7 +214,10 @@ block_index init_block(arena * mem_store, size_t* off_track){
 
 
 /*min key copying screwed up*/
-int merge_tables(byte_buffer *dest_buffer, byte_buffer * compression_buffer, compact_job_internal * job, byte_buffer * dict_buffer, shard_controller * c) {
+static int merge_tables(byte_buffer *dest_buffer, byte_buffer * compression_buffer, compact_job_internal * job, 
+    byte_buffer * dict_buffer, shard_controller * c,
+    sst_manager * m) 
+{
     sst_iter  * its = pad_allocate(sizeof(sst_iter)* job->to_merge->len);
     uint64_t dest_l_s = get_opt_file_s(job->end_level);
     frontier *pq = Frontier(sizeof(merge_data), 0, &compare_merge_data);
@@ -244,7 +247,7 @@ int merge_tables(byte_buffer *dest_buffer, byte_buffer * compression_buffer, com
     size_t sst_offset_tracker = 0;
     sst_f_inf * curr_sst=  pad_allocate(sizeof(sst_f_inf));
     *curr_sst = create_sst_empty();
-    generate_unique_sst_filename(curr_sst->file_name, MAX_F_N_SIZE, job->end_level);
+    gen_sst_fn(m,curr_sst->file_name);
     curr_sst->block_start = dest_l_s ;
     
 
@@ -303,7 +306,7 @@ int merge_tables(byte_buffer *dest_buffer, byte_buffer * compression_buffer, com
             sst_b_count = 2;
             sst_offset_tracker = 0;
 
-            generate_unique_sst_filename(curr_sst->file_name, MAX_F_N_SIZE, job->end_level);
+            gen_sst_fn(m,curr_sst->file_name);
             curr_file = dbio_open(curr_sst->file_name, 'w');
             set_context_buffer(curr_file, dest_buffer);
             if (curr_file == NULL) return FAILED_OPEN;
@@ -413,10 +416,12 @@ void compact_one_table(compact_manager * cm, compact_job_internal job,  sst_f_in
             res = -1;
         }
         fprintf(stdout, "%d removed from 1\n", res);
+        /*
         generate_unique_sst_filename(buf, 64, job.end_level);
         rename(victim->file_name, buf);
         memset(victim->file_name, 0, strlen(victim->file_name) + 1);
         memcpy(victim->file_name, buf, strlen(buf)+ 1);
+         we do not need to rename*/
         merge_lists(cm->sst_files[job.end_level], job.to_merge, &cmp_sst_f_inf);
         return;
 
@@ -425,7 +430,7 @@ void compact_one_table(compact_manager * cm, compact_job_internal job,  sst_f_in
     byte_buffer* dict_buffer = request_struct(cm->dict_buffer_pool);
     byte_buffer * dest_buffer = select_buffer(dest_l_s );
     byte_buffer * compression_buffer=  select_buffer(dest_l_s );
-    int result = merge_tables (dest_buffer,compression_buffer, &job, dict_buffer, cm->c);
+    int result = merge_tables (dest_buffer,compression_buffer, &job, dict_buffer, cm->c, cm->FIXME);
     if (result == INVALID_DATA){
         return_struct(cm->dict_buffer_pool, dict_buffer, &reset_buffer);
         return_buffer(dest_buffer);

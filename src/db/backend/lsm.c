@@ -444,7 +444,7 @@ int flush_table(mem_table *table, storage_engine * engine){
     meta->db_length+= buffer->curr_bytes;
     all_index_stream(sst->block_indexs->len, buffer, sst->block_indexs);
     copy_filter(sst->filter, buffer);
-    generate_unique_sst_filename(sst->file_name, MAX_F_N_SIZE, LVL_0);
+    gen_sst_fn(&engine->mana, sst->file_name);
     
     sst->use_dict_compression = false;
 

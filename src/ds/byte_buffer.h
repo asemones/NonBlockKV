@@ -172,6 +172,11 @@ static inline int write_int16(byte_buffer *buffer, const uint16_t src){
     buffer->curr_bytes += sizeof(uint16_t);
     return (int)sizeof(uint16_t);
 }
+static inline int write_byte(byte_buffer *buffer, const uint8_t src){
+    memcpy(buffer->buffy + buffer->curr_bytes, &src, sizeof(uint16_t));
+    buffer->curr_bytes += sizeof(uint16_t);
+    return (int)sizeof(uint16_t);
+}
 byte_buffer * create_empty_buffer();
 #endif
 

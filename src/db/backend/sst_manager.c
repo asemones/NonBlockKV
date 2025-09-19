@@ -337,3 +337,7 @@ void free_sst_sst_man(sst_manager * mana, sst_f_inf * inf, int level){
         slfree_full_slab(&mana->sst_memory.non_cached, inf);
     }
 }
+void gen_sst_fn(sst_manager * mana, const char * out){
+    gen_file_name(out, new_value(&mana->name_gen), SST_F_XT, 3);
+
+}

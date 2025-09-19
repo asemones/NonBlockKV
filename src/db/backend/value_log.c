@@ -12,36 +12,12 @@ so how can this be reduced?
 #include "value_log.h"
 LPH_DEFINE(v_log_tbl, v_log_file);
 #define ERROR 0
+#define V_LOG_EXT "vlg"
 static void create_fn(char * fn, uint64_t no){
-    char buf [16];
-    sprintf(fn, "%lu", no);
-    strcat(fn, buf);
+    gen_file_name(fn, no,V_LOG_EXT, 3);
 }
 static void seralize_v_log_file_info(const value_log * log, byte_buffer * write_buffer){
     
-}
-static uint64_t new_value(counter_t *ctr) {
-    uint64_t now = (uint64_t)time(NULL) & TS_MASK;
-
-    if (now == ctr->bits.seconds) {
-        ctr->bits.count++;
-        if (ctr->bits.count == CNT_MAX) {
-            now = (uint64_t)time(NULL) & TS_MASK;
-            if (now <= ctr->bits.seconds) {
-                ctr->bits.seconds = (ctr->bits.seconds + 1) & TS_MASK;
-            } 
-            else {
-                ctr->bits.seconds = now;
-            }
-            ctr->bits.count = 0;
-        }
-    }
-    else {
-        ctr->bits.seconds = now;
-        ctr->bits.count   = 0;
-    }
-
-    return ctr->raw;
 }
 static int read_v_log_info(){
     return 0;
@@ -58,7 +34,7 @@ value_log create_v_log(uint64_t fs){
     return v;
 }
 static byte_buffer * v_log_med_read(const value_ptr p, bool async,  byte_buffer * storage){
-    char fn[16] = V_L_FN;
+    char fn[16];
     create_fn(fn, p.file_no);
     db_FILE * f = dbio_open(fn, 'r');
     set_context_buffer(f, storage);
@@ -105,7 +81,7 @@ static value_ptr v_log_add(f_str * value, byte_buffer * file_buffer, uint64_t co
 }
 static void flush_v_tbl_buff(value_log * v){
     uint64_t temp = curr_value(&v->counter);
-    char fn [16] = V_L_FN;
+    char fn [16];
     create_fn(fn, temp);
     new_value(&v->counter);
     byte_buffer * temp_b = v->med.curr;

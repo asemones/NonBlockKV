@@ -295,8 +295,8 @@ void kill_WAL(WAL *w) {
         perror("Warning: Failed to allocate buffer for final WAL metadata write");
     }
     for (int  i =0; i < NUM_WAL_SEGMENTS; i++){
-        w->segments_manager.segments->model->callback_arg = aco_get_arg();
-        dbio_close(w->segments_manager.segments->model);
+        w->segments_manager.segments[i].model->callback_arg = aco_get_arg();
+        dbio_close(w->segments_manager.segments[i].model);
     }
     if (w->meta_ctx) {
         dbio_close(w->meta_ctx);

@@ -8,7 +8,6 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <errno.h>
-#define V_L_FN "v_log"
 #include "option.h"
 #include "../../ds/byte_buffer.h"
 #include "../../util/io_types.h"
@@ -20,12 +19,7 @@
 #include "WAL.h"
 #include "../../ds/skiplist.h"
 #include "../../ds/circq.h"
-#define BLOB_FN "blob"
-
-#define TS_BITS     48
-#define CNT_BITS    12
-#define CNT_MAX     (1U<<CNT_BITS)
-#define TS_MASK     ((1ULL<<TS_BITS) - 1)
+#include "mono_counter.h"
 #define VALUE_LEN 16;
 #define MEDIUM_MASK 44444
 #define LARGE_MASK 55555
@@ -65,19 +59,6 @@ typedef struct value_ptr{
     uint32_t off;
     uint64_t file_no;
 }value_ptr;
-typedef union {
-    struct {
-#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-        uint64_t count   : 16;  
-        uint64_t seconds : 48;  
-#elif __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
-        uint64_t seconds : 48;
-        uint64_t count   : 16;
-#endif
-    } bits;
-    uint64_t raw;              
-} counter_t;
-
 typedef struct large_strategy{
     v_log_tbl files;
 }large_strategy;

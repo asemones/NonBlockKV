@@ -1,15 +1,37 @@
 #include "manifest.h"
 
+/* we can just use an f_str to represent stuff
+*/
 
-
-
-
-
-
-int man_f_delete(){
-
+int man_f_add(manifest* w,  sst_f_inf * val){
+    f_str sst_fat_ptr;
+    sst_fat_ptr.mem = val;
+    sst_fat_ptr.len = sst_md_serialized_len(val);
+    return write_md_generic(w, FILE_ADD, sst_fat_ptr);
 }
+int man_f_del(manifest* w, sst_f_inf * val){
+    f_str sst_fat_ptr;
+    sst_fat_ptr.mem = val;
+    sst_fat_ptr.len = ;
+    return write_md_generic(w, FILE_DELTE, sst_fat_ptr);
+}
+int man_f_commit(manifest* w){
+    return flush_manifest_buffer(w, MD_COMMIT,f_str_empty());
+}
+static uint64_t add_to_buffer_generic(byte_buffer * b, manifest_cmd type, f_str key){
+    
+}
+static uint64_t add_to_buffer( byte_buffer * b, manifest_cmd type,f_str key){
+    uint64_t ret=  write_byte(b, type);
+    ret += write_fstr(b, key);
+    return ret;
+}
+/*the choice: metadata stored in manifest, or their respective files
+pro for files: easy api for commits -> cannot be resolved easily
+con for files; much slower startup times-> could be resolved by using async spam
+requires some changes to the sst file format
 
+*/
 static db_FILE * clone_ctx(db_FILE * ctx){
     db_FILE * ctx_cp = get_ctx();
     size_t size = sizeofdb_FILE();
@@ -63,7 +85,7 @@ static int read_segement_header(byte_buffer * stream, char * time) {
     read_buffer(stream, time, size);
     return size;
 }
-static int flush_manifest_buffer(manifest *w, f_str k) {
+static int flush_manifest_buffer(manifest *w, manifest_cmd type, f_str k) {
     if (!w || !w->manifest_buffer || w->manifest_buffer->curr_bytes == 0) {
         return 0;
     }
@@ -93,9 +115,9 @@ static int flush_manifest_buffer(manifest *w, f_str k) {
         return_ctx(file_ctx);
         exit(EXIT_FAILURE);
     }
-    if (k.entry){
-        current_segment->current_size += write_disk_format(w->manifest_buffer, k);
-    }
+    
+    current_segment->current_size += add_to_buffer(w->manifest_buffer, type, k);
+    
     set_context_buffer(file_ctx, buffer_to_flush);
 
     int submission_result = dbio_write(file_ctx, write_offset, flush_size);
@@ -205,7 +227,7 @@ manifest* init_manifest(byte_buffer *b, uint64_t seg_cap) {
     
     return w;
 }
-static int write_md_generic(manifest *w, f_str key) {
+static int write_md_generic(manifest *w, manifest_cmd type,f_str key) {
     if (!w) return FAILED_TRANSCATION;
 
     int ret = 0;
@@ -221,7 +243,7 @@ static int write_md_generic(manifest *w, f_str key) {
         ret = rotate_wal_segment(w);
         if (ret != 0) return FAILED_TRANSCATION;
         if (w->manifest_buffer && w->manifest_buffer->curr_bytes > 0) {
-            ret = flush_manifest_buffer(w, key);
+            ret = flush_manifest_buffer(w, type, key);
             if (ret < 0) {
                 fprintf(stderr, "Error flushing manifest buffer after rotation\n");
                 return FAILED_TRANSCATION;
@@ -233,7 +255,7 @@ static int write_md_generic(manifest *w, f_str key) {
 
     bool buffer_flush_needed = (w->manifest_buffer && (w->manifest_buffer->curr_bytes + data_size > w->flush_cadence));
     if (buffer_flush_needed) {
-        ret = flush_manifest_buffer(w, key);
+        ret = flush_manifest_buffer(w, type, key);
         if (ret < 0) {
             fprintf(stderr, "Error flushing manifest buffer before adding new data\n");
             return FAILED_TRANSCATION;
@@ -249,15 +271,9 @@ static int write_md_generic(manifest *w, f_str key) {
         return 0;
     }
     int written_to_buffer = 0;
-    ret = write_disk_format(w->manifest_buffer, key);
+    ret = add_to_buffer(w->manifest_buffer, type, key);
     if (ret < 0) {
         fprintf(stderr, "Error writing key to manifest buffer\n");
-        return FAILED_TRANSCATION;
-    }
-    written_to_buffer += ret;
-
-    if (ret < 0) {
-        fprintf(stderr, "Error writing value to manifest buffer\n");
         return FAILED_TRANSCATION;
     }
     written_to_buffer += ret;
@@ -269,9 +285,7 @@ static int write_md_generic(manifest *w, f_str key) {
 
 void kill_manifest(manifest *w) {
     if (!w) return;
-    f_str empty;
-    empty.entry = NULL;
-    if (flush_manifest_buffer(w, empty) < 0) {
+    if (flush_manifest_buffer(w ,KILL_LOG, f_str_empty()) < 0) {
         fprintf(stderr, "Warning: Error during final manifest buffer flush in kill_manifest.\n");
     }
     w->meta_ctx->callback_arg = aco_get_arg();
@@ -291,8 +305,8 @@ void kill_manifest(manifest *w) {
         perror("Warning: Failed to allocate buffer for final manifest metadata write");
     }
     for (int  i =0; i < NUM_MD_SEG; i++){
-        w->segments_manager.segments->model->callback_arg = aco_get_arg();
-        dbio_close(w->segments_manager.segments->model);
+        w->segments_manager.segments[i].model->callback_arg == aco_get_arg();
+        dbio_close(w->segments_manager.segments[i].model);
     }
     if (w->meta_ctx) {
         dbio_close(w->meta_ctx);

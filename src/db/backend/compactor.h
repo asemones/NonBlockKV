@@ -16,6 +16,7 @@
 #include "../../util/io.h"
 #include <unistd.h>
 #include "../../util/multitask.h"
+#include"sst_manager.h"
 #ifndef COMPACTOR_H
 #define COMPACTOR_H
 #define NUM_THREADP 1
@@ -114,6 +115,7 @@ typedef struct compact_job_internal{
  */
 typedef struct compact_manager{
     list ** sst_files;
+    sst_manager * FIXME;
     size_t base_level_size;
     size_t min_compact_ratio;
     struct_pool * dict_buffer_pool;
@@ -211,16 +213,6 @@ void reset_block_counters(int *block_b_count, int *sst_b_count);
  */
 block_index init_block(arena * mem_store, size_t* off_track);
 
-/**
- * @brief Merges tables during compaction.
- * @param dest_buffer Destination buffer.
- * @param job Compaction job.
- * @param a Memory arena.
- * @param c Shard controller.
- * @param cm Compaction manager.
- * @return 0 on success, error code on failure.
- */
-int merge_tables(byte_buffer *dest_buffer, byte_buffer * compression_buffer, compact_job_internal * job, byte_buffer * dict_buffer, shard_controller * c);
 
 /**
  * @brief Calculates the overlap between two key ranges.

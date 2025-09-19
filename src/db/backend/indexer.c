@@ -2,11 +2,11 @@
 #define NUM_HASH_SST 10
 #define MAX_KEY_SIZE 100
 #define TIME_STAMP_SIZE 32
-#define MAX_F_N_SIZE 64
 #define MAX_LEVELS 7
 #define BASE_LEVEL_SIZE 6400000
 #define MIN_COMPACT_RATIO 50
 #define MEM_SIZE 100000
+
 sst_f_inf create_sst_empty(){
     sst_f_inf file;
     file.block_indexs = List(0, sizeof(block_index), true);
@@ -288,25 +288,6 @@ int find_sst_file_eq_iter(list  *sst_files, size_t num_files, const char * file_
     }
     return -1;
 }
-void generate_unique_sst_filename(char *buffer, size_t buffer_size, int level) {
-    static int seeded = 0;
-    if (!seeded) {
-        struct timeval tv_seed;
-        gettimeofday(&tv_seed, NULL);
-        srand((unsigned int)(tv_seed.tv_sec ^ tv_seed.tv_usec ^ getpid()));
-        seeded = 1;
-    }
-
-    struct timeval tv;
-    gettimeofday(&tv, NULL);
-
-    uint32_t r1 = (uint32_t)rand();
-    uint32_t r2 = (uint32_t)rand();
-    uint64_t random_val = ((uint64_t)r1 << 32) | r2;
-
-    snprintf(buffer, buffer_size, "sst_%d_%ld_%ld_%016lx",
-             level, tv.tv_sec, tv.tv_usec, random_val);
-}
 void build_index(sst_f_inf * sst, block_index * index, byte_buffer * b, size_t num_entries, size_t block_offsets){
 
     index->offset = block_offsets;
@@ -398,4 +379,44 @@ void dump_sst_meta_part(sst_f_inf * to_write, byte_buffer * b, uint64_t part_sta
     to_write->part_start = part_start_4k_alligned;
     to_write->block_start = part_start_4k_alligned + b->curr_bytes;
     all_index_stream_part(blocks->len,b, blocks, to_write->sst_partitions->arr);
+}
+uint64_t sst_md_serialized_len(const sst_f_inf *s) {
+    uint64_t n = 0;
+
+    // 1) file_name, NUL-terminated
+    n +=CTR_FN_LEN;
+
+    // 2-3) sizes
+    n += sizeof(size_t);      // length
+    n += sizeof(size_t);      // compressed_len
+
+    // 4) bool (or 1 byte if you change the on-disk type)
+    n += sizeof(bool);
+
+    // 5-6) dict info (use the actual field types)
+    n += sizeof(s->compr_info.dict_offset);
+    n += sizeof(s->compr_info.dict_len);
+
+    // 7-8) max/min f_str (must match what read_fstr() consumes)
+    n += f_str_len_mem_disk(s->max);
+    n += f_str_len_mem_disk(s->min);
+
+    // 9) timeval (or two int64_t if you change the on-disk format)
+    n += sizeof(struct timeval);
+
+    // 10-11) block_start and block_ind_len
+    n += sizeof(size_t);      // block_start
+    n += sizeof(size_t);      // block_ind_len
+    
+    n+= sizeof(uint8_t); // for level
+    return n;
+}
+uint64_t sst_md_str(const sst_f_inf *s){
+    uint64_t n = 0;
+
+    // 1) file_name, NUL-terminated
+    n += (uint64_t)strlen(s->file_name) + 1;
+    n += f_str_len_mem_disk(s->max);
+    n += f_str_len_mem_disk(s->min);
+
 }

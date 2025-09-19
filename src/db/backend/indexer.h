@@ -17,7 +17,7 @@
 #include "compression.h"
 #include "../../ds/speedy_bloom.h"
 #define MAX_KEY_SIZE 100
-#define MAX_F_N_SIZE 64
+#define MAX_F_N_SIZE 16
 #pragma once
 /*
 Each SST (Sorted String Table) will have its own Bloom filter and min/max key.
@@ -230,13 +230,7 @@ int sst_equals(sst_f_inf * one, sst_f_inf * two);
  */
 int find_sst_file_eq_iter(list * sst_files, size_t num_files, const char * file_n);
 
-/**
- * @brief Generates a unique SST file name
- * @param buffer Buffer to store the generated name
- * @param buffer_size Size of the buffer
- * @param level Level number for the SST file
- */
-void generate_unique_sst_filename(char *buffer, size_t buffer_size, int level);
+
 
 /**
  * @brief Builds an index for an SST file
@@ -284,3 +278,4 @@ void dump_sst_meta_part(sst_f_inf * to_write, byte_buffer * b, uint64_t part_sta
 f_str block_key_decode(const char * block_start, uint16_t * offsets, uint16_t ind);
 f_str decode_val_from_k(f_str decoded_key);
 merge_data decode_next_pair_iter(const char * block_start, uint16_t * offsets, uint16_t ind_to_get);
+uint64_t sst_md_serialized_len(const sst_f_inf *s);
