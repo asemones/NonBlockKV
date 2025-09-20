@@ -72,6 +72,7 @@ int main(void) {
     RUN_TEST(test_full_filter_add_and_contain);
     RUN_TEST(test_serialization);
     RUN_TEST(test_performance);
+    RUN_TEST(run_fpr_test);
     fprintf(stderr, "RUNNING SST_MAN_TESTS\n");
     RUN_TEST(test_create);
     RUN_TEST(test_make_ssts);

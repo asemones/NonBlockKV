@@ -18,6 +18,22 @@ db_FILE * clone_ctx(db_FILE * ctx){
     ctx_cp->callback_arg = task;
     return ctx_cp;
 }
+static int update_md(WAL *w){
+    const int min_pg_size = 4096; /*no need to select anything smaller and md is tiny */
+    w->meta_ctx->callback_arg = aco_get_arg();
+    byte_buffer *meta_write_buf = select_buffer(min_pg_size);
+    serialize_wal_metadata(w, meta_write_buf);
+    if (meta_write_buf->curr_bytes > 0) {
+        set_context_buffer(w->meta_ctx, meta_write_buf);
+        if (dbio_write(w->meta_ctx, 0, meta_write_buf->curr_bytes) < 0) {
+                perror("Warning: Failed to write final WAL metadata");
+                return -1;
+        } 
+        else {
+                dbio_fsync(w->meta_ctx);
+        }
+    }
+}
 static void serialize_wal_metadata(WAL *w, byte_buffer *b) {
     reset_buffer(b);
     write_buffer(b, (char*)&w->total_len, sizeof(w->total_len));
@@ -269,7 +285,6 @@ int write_WAL(WAL *w, f_str key, f_str value) {
     current_segment->current_size += written_to_buffer;
     return 0;
 }
-
 void kill_WAL(WAL *w) {
     if (!w) return;
     f_str empty;
@@ -277,21 +292,7 @@ void kill_WAL(WAL *w) {
     if (flush_wal_buffer(w, empty, empty) < 0) {
         fprintf(stderr, "Warning: Error during final WAL buffer flush in kill_WAL.\n");
     }
-    // Assuming flush completes or errors out before proceeding
-    w->meta_ctx->callback_arg = aco_get_arg();
-    byte_buffer *meta_write_buf = select_buffer(4096);
-    if (meta_write_buf) {
-        serialize_wal_metadata(w, meta_write_buf);
-        if (meta_write_buf->curr_bytes > 0) {
-            set_context_buffer(w->meta_ctx, meta_write_buf);
-            if (dbio_write(w->meta_ctx, 0, meta_write_buf->curr_bytes) < 0) {
-                 perror("Warning: Failed to write final WAL metadata");
-            } else {
-                 dbio_fsync(w->meta_ctx);
-            }
-        }
-    } 
-    else {
+    if (update_md(w) < 0){
         perror("Warning: Failed to allocate buffer for final WAL metadata write");
     }
     for (int  i =0; i < NUM_WAL_SEGMENTS; i++){

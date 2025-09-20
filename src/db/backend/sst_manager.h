@@ -4,7 +4,7 @@
 #include "../../ds/list.h"
 #include "../../ds/circq.h"
 #include "../../util/maths.h"
-#include "mono_counter.h"
+#include "../../util/mono_counter.h"
 #ifndef SST_MANAGER_H
 #define  SST_MANAGER_H
 #define SST_F_XT "nbl"
@@ -59,5 +59,5 @@ size_t find_block(list * block_indexs, const f_str key);
 size_t find_sst_file(list *sst_files, f_str key);
 sst_f_inf * get_sst(sst_manager * mana, f_str targ, int level);
 sst_f_inf *  allocate_sst(sst_manager * mana,  uint64_t num_keys, int level);
-void gen_sst_fn(sst_manager * mana, const char * out);
+void gen_sst_fn(sst_manager * mana, char * out);
 #endif

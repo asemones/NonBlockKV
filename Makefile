@@ -1,5 +1,5 @@
 CC      := clang
-CFLAGS  := -Wall -g -pg -m64 -I./src -gdwarf-4 -mavx -O3
+CFLAGS  := -Wall -g -pg -m64 -I./src -gdwarf-4 -mavx2 -O3
 LDFLAGS := -debug -pthread -luuid -lzstd -luring -lm
 
 OBJDIR := build
@@ -17,6 +17,7 @@ SRCS += src/util/aco.c
 SRCS += src/util/multitask.c 
 SRCS += src/util/multitask_primitives.c
 SRCS += src/util/maths.c 
+SRCS += src/util/mono_counter.c
 
 # Add assembly file
 ASM_SRCS := src/util/acosw.S

@@ -213,34 +213,6 @@ void f_cpy(f_str *dest, const f_str *src){
     }
     dest->len = src->len;
 }
-uint64_t sst_md_serialized_len(const sst_f_inf *s) {
-    uint64_t n = 0;
-
-    // 1) file_name, NUL-terminated
-    n += (uint64_t)strlen(s->file_name) + 1;
-
-    // 2-3) sizes
-    n += sizeof(size_t);      // length
-    n += sizeof(size_t);      // compressed_len
-
-    // 4) bool (or 1 byte if you change the on-disk type)
-    n += sizeof(bool);
-
-    // 5-6) dict info (use the actual field types)
-    n += sizeof(s->compr_info.dict_offset);
-    n += sizeof(s->compr_info.dict_len);
-
-    // 7-8) max/min f_str (must match what read_fstr() consumes)
-    n += f_str_len_mem_disk(s->max);
-    n += f_str_len_mem_disk(s->min);
-
-    // 9) timeval (or two int64_t if you change the on-disk format)
-    n += sizeof(struct timeval);
-
-    // 10-11) block_start and block_ind_len
-    n += sizeof(size_t);      // block_start
-    n += sizeof(size_t);      // block_ind_len
-
-    return n;
+uint64_t f_str_len_mem_disk( const f_str src){
+    return src.len + sizeof(src.len);
 }
-

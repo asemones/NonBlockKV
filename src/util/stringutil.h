@@ -74,7 +74,7 @@ static inline void gen_file_name(char * out, uint64_t id, const char * ext, uint
     const int b64url_len= 11;
     out[b64url_len] = '.';
 
-    const char * definite_end = &out[b64url_len] + 1;
+    char * definite_end = &out[b64url_len] + 1;
     memcpy(definite_end, ext, ext_len );
     out[b64url_len+ 1 + ext_len]= '\0';
 }

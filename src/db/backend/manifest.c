@@ -2,6 +2,71 @@
 
 /* we can just use an f_str to represent stuff
 */
+static int flush_manifest_buffer(manifest *w, manifest_cmd type, f_str k);
+static uint64_t add_to_buffer_generic(byte_buffer * b, manifest_cmd type, f_str key);
+static uint64_t add_to_buffer( byte_buffer * b,f_str key);
+
+static int rotate_manifest_segment(manifest * w);
+/*load and parse manifest.
+this is just a fat switch to apply all of the change*/
+static int manifest_parse(manifest * w, byte_buffer * b){
+
+}
+static int write_md_generic(manifest *w, manifest_cmd type,f_str key) {
+    if (!w) return FAILED_TRANSCATION;
+
+    int ret = 0;
+    uint64_t data_size = key.len;
+    manifest_seg_mgr*mgr = &w->segments_manager;
+    manifest_segment *current_segment = &mgr->segments[mgr->current_segment_idx]; 
+
+ 
+    bool rotation_needed = (current_segment->current_size + data_size > mgr->segment_capacity);
+    bool values_written  = false;
+    if (rotation_needed) {
+
+        ret = rotate_manifest_segment(w);
+        if (ret != 0) return FAILED_TRANSCATION;
+        if (w->manifest_buffer && w->manifest_buffer->curr_bytes > 0) {
+            ret = flush_manifest_buffer(w, type, key);
+            if (ret < 0) {
+                fprintf(stderr, "Error flushing manifest buffer after rotation\n");
+                return FAILED_TRANSCATION;
+            }
+        }
+        current_segment = &mgr->segments[mgr->current_segment_idx];
+        values_written = true;
+    }
+
+    bool buffer_flush_needed = (w->manifest_buffer && (w->manifest_buffer->curr_bytes + data_size > w->flush_cadence));
+    if (buffer_flush_needed) {
+        ret = flush_manifest_buffer(w, type, key);
+        if (ret < 0) {
+            fprintf(stderr, "Error flushing manifest buffer before adding new data\n");
+            return FAILED_TRANSCATION;
+        }
+        values_written = true;
+    }
+
+    if (!w->manifest_buffer) {
+         fprintf(stderr, "CRITICAL: manifest buffer is NULL before writing\n");
+         exit(EXIT_FAILURE);
+    }
+    if (values_written){
+        return 0;
+    }
+    int written_to_buffer = 0;
+    ret =  add_to_buffer_generic(w->manifest_buffer, type, key);
+    if (ret < 0) {
+        fprintf(stderr, "Error writing key to manifest buffer\n");
+        return FAILED_TRANSCATION;
+    }
+    written_to_buffer += ret;
+
+    w->total_len++;
+    current_segment->current_size += written_to_buffer;
+    return 0;
+}
 
 int man_f_add(manifest* w,  sst_f_inf * val){
     f_str sst_fat_ptr;
@@ -22,19 +87,45 @@ static void write_sst_strs(byte_buffer * b, sst_f_inf * in){
     write_buffer(b, in->file_name, MAX_F_N_SIZE);
     write_fstr(b, in->min);
     write_fstr(b,in->max);
-    
+
+}
+static void read_sst_md(byte_buffer * b, sst_f_inf * in){
+    read_buffer(b, in->file_name, MAX_F_N_SIZE);
+    read_fstr(b, &in->min);
+    read_fstr(b,&in->max);
+    in->length=read_int64(b);
+    in->compressed_len=read_int64(b);
+    in->use_dict_compression=read_byte(b);
+    in->compr_info.dict_offset=read_int64(b);
+    in->compr_info.dict_len=read_int64(b);
+    read_buffer(b,&in->time,sizeof(in->time));
+    in->block_start=read_int64(b);
+    in->length = read_int64(b);
+
 }
 static void seralize_sst_md_all(byte_buffer * b, sst_f_inf * in){
     write_sst_strs(b, in);
+    write_int64(b, in->length);
+    write_int64(b, in->compressed_len);
+    write_byte(b, in->use_dict_compression);
+    write_int64(b, in->compr_info.dict_offset);
+    write_int64(b, in->compr_info.dict_len);
+    write_buffer(b, &in->time, sizeof(in->time));
+    write_int64(b, in->block_start);
+    write_int64(b, in->level);
 }
 static uint64_t add_to_buffer_f_add(byte_buffer * b, sst_f_inf * in){
     seralize_sst_md_all(b, in);
     return 0;
-}   
+}
 static uint64_t add_to_buffer_f_delete(byte_buffer * b, sst_f_inf * in){
     write_sst_strs(b, in);
     return 0;
 }
+/*this is a strange format i did here out of lazyniess.
+Earlier, the amount of data to be persisted is calcuilated and stored
+in the f_str key len because i am lazy and didnt want to write a bunch of duplicate code.
+is it a good idea? NO. but thats why this comment exists :/ */
 static uint64_t add_to_buffer_generic(byte_buffer * b, manifest_cmd type, f_str key){
     write_byte(b, type);
 
@@ -73,13 +164,13 @@ static void serialize_manifest_metadata(manifest *w, byte_buffer *b) {
     write_buffer(b, (char*)&w->total_len, sizeof(w->total_len));
     write_buffer(b, (char*)&w->segments_manager.current_segment_idx, sizeof(w->segments_manager.current_segment_idx));
     write_buffer(b, (char*)&w->segments_manager.segments[w->segments_manager.current_segment_idx].current_size, sizeof(size_t));
+    write_int64(b, w->snapshot_end);
 }
-
 static bool deserialize_manifest_metadata(manifest *w, byte_buffer *b) {
     read_buffer(b, (char*)&w->total_len, sizeof(w->total_len));
     read_buffer(b, (char*)&w->segments_manager.current_segment_idx, sizeof(w->segments_manager.current_segment_idx));
     read_buffer(b, (char*)&w->segments_manager.segments[w->segments_manager.current_segment_idx].current_size, sizeof(size_t));
-
+    w->snapshot_end = read_int64(b);
     if (w->segments_manager.current_segment_idx < 0 || w->segments_manager.current_segment_idx >= w->segments_manager.num_segments) {
         fprintf(stderr, "Warning: Invalid current_segment_idx (%d) read from manifest metadata. Resetting.\n", w->segments_manager.current_segment_idx);
         w->segments_manager.current_segment_idx = 0;
@@ -90,7 +181,7 @@ static bool deserialize_manifest_metadata(manifest *w, byte_buffer *b) {
     return true;
 }
 
-static int rotate_wal_segment(manifest *w) {
+static int rotate_manifest_segment(manifest *w) {
     manifest_seg_mgr *mgr = &w->segments_manager;
     int current_idx = mgr->current_segment_idx;
     w->rotating = true;
@@ -160,9 +251,6 @@ static int flush_manifest_buffer(manifest *w, manifest_cmd type, f_str k) {
         return submission_result;
     }
     return flush_size;
-}
-static void get_wal_fn(char * buf, int idx){
-    sprintf(buf, "WAL_SEG_%d.bin", idx);
 }
 manifest* init_manifest(byte_buffer *b, uint64_t seg_cap) {
     manifest *w = malloc(sizeof(manifest));
@@ -255,62 +343,8 @@ manifest* init_manifest(byte_buffer *b, uint64_t seg_cap) {
     
     return w;
 }
-static int write_md_generic(manifest *w, manifest_cmd type,f_str key) {
-    if (!w) return FAILED_TRANSCATION;
-
-    int ret = 0;
-    uint64_t data_size = key.len;
-    manifest_seg_mgr*mgr = &w->segments_manager;
-    manifest_segment *current_segment = &mgr->segments[mgr->current_segment_idx]; 
-
- 
-    bool rotation_needed = (current_segment->current_size + data_size > mgr->segment_capacity);
-    bool values_written  = false;
-    if (rotation_needed) {
-
-        ret = rotate_wal_segment(w);
-        if (ret != 0) return FAILED_TRANSCATION;
-        if (w->manifest_buffer && w->manifest_buffer->curr_bytes > 0) {
-            ret = flush_manifest_buffer(w, type, key);
-            if (ret < 0) {
-                fprintf(stderr, "Error flushing manifest buffer after rotation\n");
-                return FAILED_TRANSCATION;
-            }
-        }
-        current_segment = &mgr->segments[mgr->current_segment_idx];
-        values_written = true;
-    }
-
-    bool buffer_flush_needed = (w->manifest_buffer && (w->manifest_buffer->curr_bytes + data_size > w->flush_cadence));
-    if (buffer_flush_needed) {
-        ret = flush_manifest_buffer(w, type, key);
-        if (ret < 0) {
-            fprintf(stderr, "Error flushing manifest buffer before adding new data\n");
-            return FAILED_TRANSCATION;
-        }
-        values_written = true;
-    }
-
-    if (!w->manifest_buffer) {
-         fprintf(stderr, "CRITICAL: manifest buffer is NULL before writing\n");
-         exit(EXIT_FAILURE);
-    }
-    if (values_written){
-        return 0;
-    }
-    int written_to_buffer = 0;
-    ret =  add_to_buffer_generic(w->manifest_buffer, type, key);
-    if (ret < 0) {
-        fprintf(stderr, "Error writing key to manifest buffer\n");
-        return FAILED_TRANSCATION;
-    }
-    written_to_buffer += ret;
-
-    w->total_len++;
-    current_segment->current_size += written_to_buffer;
-    return 0;
-}
-
+/*this kill function flushes the buffers, which means everything gets safely persisted to disk
+as such, since all commands should be submmited beforehand, no special dump is required*/
 void kill_manifest(manifest *w) {
     if (!w) return;
     if (flush_manifest_buffer(w ,KILL_LOG, f_str_empty()) < 0) {
@@ -333,7 +367,7 @@ void kill_manifest(manifest *w) {
         perror("Warning: Failed to allocate buffer for final manifest metadata write");
     }
     for (int  i =0; i < NUM_MD_SEG; i++){
-        w->segments_manager.segments[i].model->callback_arg == aco_get_arg();
+        w->segments_manager.segments[i].model->callback_arg = aco_get_arg();
         dbio_close(w->segments_manager.segments[i].model);
     }
     if (w->meta_ctx) {

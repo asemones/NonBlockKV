@@ -163,10 +163,9 @@ double get_time_sec() {
 
 void test_performance(void) {
     #define NUM_KEYS 1000000
+    #define NUM_QUERIES 5000000
     #define BITS_PER_KEY 10.0
 
-    printf("\n--- Performance Test ---\n");
-    
     f_str* keys = (f_str*)malloc(NUM_KEYS * sizeof(f_str));
     TEST_ASSERT_NOT_NULL(keys);
 
@@ -178,47 +177,114 @@ void test_performance(void) {
         TEST_ASSERT_NOT_NULL(keys[i].entry);
     }
 
-    printf("\n[Speedy Bloom Filter (AVX2)]\n");
-    printf("Filter Config: %d keys, %.1f bits per key.\n", NUM_KEYS, BITS_PER_KEY);
+    printf("\n--- Performance Test ---\n");
+    printf("[Speedy Bloom Filter]\n");
+    printf("Filter Config: %d keys, %.1f bits per key, %d queries.\n", NUM_KEYS, BITS_PER_KEY, NUM_QUERIES);
 
     bb_filter perf_filter;
     bb_filter_init_capacity(&perf_filter, NUM_KEYS, BITS_PER_KEY);
-    size_t data_size = (size_t)perf_filter.bucket_cnt * C_LINE;
-    perf_filter.data = (uint32_t*)aligned_alloc(C_LINE, data_size);
     TEST_ASSERT_NOT_NULL(perf_filter.data);
-    memset(perf_filter.data, 0, data_size);
 
-    printf("Phase 1 (Speedy): Adding %d keys...\n", NUM_KEYS);
+    printf("Phase 1: Adding %d keys...\n", NUM_KEYS);
     double start_time = get_time_sec();
     for (int i = 0; i < NUM_KEYS; ++i) {
         bb_filter_add(&perf_filter, keys[i]);
     }
     double end_time = get_time_sec();
-    volatile uint32_t dummy_read = perf_filter.data[0]; 
-    (void)dummy_read;
 
-    double set_time = end_time - start_time;
-    double ns_per_op = (set_time / NUM_KEYS) * 1e9;
+    double add_time = end_time - start_time;
+    double ns_per_op = (add_time / NUM_KEYS) * 1e9;
     double cycles_per_op = ns_per_op * CPU_GHZ;
-    printf("  -> Done in %.4f seconds.\n", set_time);
-    printf("  -> Approx. %.2f million sets/sec\n", (double)NUM_KEYS / set_time / 1e6);
+    printf("  -> Done in %.4f seconds.\n", add_time);
+    printf("  -> Approx. %.2f million adds/sec\n", (double)NUM_KEYS / add_time / 1e6);
     printf("  -> %.2f ns/op (%.2f cycles/op @ %.2f GHz)\n",
            ns_per_op, cycles_per_op, CPU_GHZ);
 
-    printf("Phase 2 (Speedy): Checking for %d existing keys...\n", NUM_KEYS);
-    volatile bool result; 
+    printf("Phase 2: Checking for %d existing keys...\n", NUM_QUERIES);
+    volatile bool result;
     start_time = get_time_sec();
-    for (int i = 0; i < NUM_KEYS; ++i) {
-        result = bb_filter_may_contain(&perf_filter, keys[i]);
+    for (int i = 0; i < NUM_QUERIES; ++i) {
+        result = bb_filter_may_contain(&perf_filter, keys[i % NUM_KEYS]);
     }
     end_time = get_time_sec();
-    double get_time = end_time - start_time;
-    ns_per_op = (get_time / NUM_KEYS) * 1e9;
+    
+    double query_time = end_time - start_time;
+    ns_per_op = (query_time / NUM_QUERIES) * 1e9;
     cycles_per_op = ns_per_op * CPU_GHZ;
-    printf("  -> Done in %.4f seconds.\n", get_time);
-    printf("  -> Approx. %.2f million gets/sec\n", (double)NUM_KEYS / get_time / 1e6);
+    printf("  -> Done in %.4f seconds.\n", query_time);
+    printf("  -> Approx. %.2f million queries/sec\n", (double)NUM_QUERIES / query_time / 1e6);
     printf("  -> %.2f ns/op (%.2f cycles/op @ %.2f GHz)\n",
            ns_per_op, cycles_per_op, CPU_GHZ);
 
+    for (int i = 0; i < NUM_KEYS; ++i) {
+        free(keys[i].entry);
+    }
+    free(keys);
     free(perf_filter.data);
 }
+static inline uint64_t xorshift64(uint64_t *s){
+    uint64_t x = *s;
+    x ^= x << 13;
+    x ^= x >> 7;
+    x ^= x << 17;
+    *s = x;
+    return x;
+}
+
+static inline f_str make_key64(const uint64_t *p){
+    f_str k;
+    k.entry = (void*)p;
+    k.len   = 8;
+    return k;
+}
+void test_bloom_fpr_and_correctness(size_t n_keys, size_t n_probes, double target_bpk, double tol_factor){
+    bb_filter f = {0};
+    int rc = bb_filter_init_capacity(&f, n_keys, target_bpk);
+    assert(rc == 0);
+
+    uint64_t *ins_keys = (uint64_t*)malloc(n_keys * sizeof(uint64_t));
+    uint64_t *probe_keys = (uint64_t*)malloc(n_probes * sizeof(uint64_t));
+    assert(ins_keys && probe_keys);
+    uint64_t seed = (uintptr_t)probe_keys;
+    for (size_t i = 0; i < n_keys; i++) ins_keys[i] = xorshift64(&seed);
+    for (size_t i = 0; i < n_probes; i++) probe_keys[i] = xorshift64(&seed);
+
+    for (size_t i = 0; i < n_keys; i++){
+        f_str k = make_key64(&ins_keys[i]);
+        bb_filter_add(&f, k);
+    }
+
+    for (size_t i = 0; i < n_keys; i++){
+        f_str k = make_key64(&ins_keys[i]);
+        assert(bb_filter_may_contain(&f, k) && "CRITICAL: False negative detected!");
+    }
+
+    size_t fp_count = 0;
+    for (size_t i = 0; i < n_probes; i++){
+        f_str k = make_key64(&probe_keys[i]);
+        if (bb_filter_may_contain(&f, k)) {
+            fp_count++;
+        }
+    }
+    double observed_fpr = (double)fp_count / (double)n_probes;
+
+    double k = (double)BB_K;
+    double actual_total_bits = (double)f.bucket_cnt * BB_BUCKET_BITS;
+    double actual_bpk = target_bpk;
+
+    double B = (double)BB_BUCKET_BITS;
+    double k_effective = B * (1.0 - pow(1.0 - 1.0/B, k));
+    double expected_fpr_adj = pow(1.0 - exp(-k_effective / actual_bpk), k_effective);
+
+    printf("FPR observed=%.6f expected(adj)=%.6f (BB_K=%u, target_bpk=%.2f, actual_bpk=%.2f)\n",
+           observed_fpr, expected_fpr_adj, (unsigned)BB_K, target_bpk, actual_bpk);
+
+
+    free(ins_keys);
+    free(probe_keys);
+    free(f.data);
+}
+void run_fpr_test(void){
+    test_bloom_fpr_and_correctness(1000000, 1000000, 10, 1.5);
+}
+

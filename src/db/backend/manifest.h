@@ -1,4 +1,3 @@
-#include "byte_buffer.h"
 #ifndef MANIFEST_H
 #define MANIFEST_H
 
@@ -47,7 +46,7 @@ typedef struct manifest {
     size_t total_len;
     bool rotating;
     int flush_cadence;
-    int replay_end;  
+    uint64_t snapshot_end;  
 } manifest;
 typedef enum manifest_cmd{
     KILL_LOG,

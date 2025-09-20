@@ -1,6 +1,8 @@
 #include <stdint.h>
 #include <time.h>
 #include "maths.h"
+#ifndef MONO_COUNTER
+#define MONO_COUNTER
 /*a safe unique counter capable of 65k reads per second without needing to persist anything*/
 #define TS_BITS     48
 #define CNT_BITS    12
@@ -20,3 +22,4 @@ typedef union {
 } counter_t;
 uint64_t new_value(counter_t *ctr);
 uint64_t get_mono_ctr_v(const counter_t ctr);
+#endif

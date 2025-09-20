@@ -1,6 +1,6 @@
 #ifndef BLOCKED_BLOOM_H
 #define BLOCKED_BLOOM_H
-
+#include "../util/rapidhash.h"
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -17,9 +17,8 @@ typedef struct {
     uint32_t bucket_mask;
     uint32_t bucket_cnt;
 } bb_filter;
-#define BB_K 8u
-uint64_t bb_mix64(uint64_t x);
-uint32_t bb_ceil_pow2_u32(uint32_t x);
+#define BB_K 6u
+#define BB_BUCKET_BITS 64u
 void seralize_filter(byte_buffer * b, bb_filter f);
 void deseralize_filter_head(byte_buffer * b, bb_filter * f);
 void deseralize_filter_body(byte_buffer * b, bb_filter * f);

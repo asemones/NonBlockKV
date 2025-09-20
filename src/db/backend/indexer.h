@@ -280,3 +280,4 @@ f_str block_key_decode(const char * block_start, uint16_t * offsets, uint16_t in
 f_str decode_val_from_k(f_str decoded_key);
 merge_data decode_next_pair_iter(const char * block_start, uint16_t * offsets, uint16_t ind_to_get);
 uint64_t sst_md_serialized_len(const sst_f_inf *s);
+uint64_t sst_md_str(const sst_f_inf *s);

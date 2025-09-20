@@ -417,5 +417,6 @@ uint64_t sst_md_str(const sst_f_inf *s){
     n += MAX_F_N_SIZE;
     n += f_str_len_mem_disk(s->max);
     n += f_str_len_mem_disk(s->min);
+    return n;
 
 }

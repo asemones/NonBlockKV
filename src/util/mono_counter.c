@@ -1,4 +1,5 @@
 #include "mono_counter.h"
+
 static uint64_t fast_path(counter_t *ctr){
     ctr->bits.count ++;
     return ctr->raw;

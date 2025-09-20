@@ -17,7 +17,6 @@ void test_use_and_load(void){
 
     for(size_t i = 0; i < 100; i++){
         sst_f_inf * sst = (sst_f_inf*)wrapper_alloc((sizeof(sst_f_inf)), NULL,NULL);
-        sst->file_name = malloc(100);
         sst->max = f_str_alloc(malloc(100));
         sst->min = f_str_alloc(malloc(100));
         gen_sst_fname(i, 0, sst->file_name);

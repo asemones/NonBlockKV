@@ -406,7 +406,6 @@ void compact_one_table(compact_manager * cm, compact_job_internal job,  sst_f_in
     
     /*trival move*/
     if (ssts_to_merge->len <= 1 && job.start_level != 0) {
-        char buf[64];
         int res  = remove_same_sst(victim, cm->sst_files[job.start_level], job.start_level);
         if (res >= 0){
             res = 1;
