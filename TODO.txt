@@ -128,6 +128,10 @@ TODO_LOG
     finally almost done with this not fun stuff
 9.3 fix v_log and other uses of decent string type; ensure it works with paritions properly; ensure disk usage is correct
 9.10 manifest
+these logs are tedious
+fixed file name size
+fixed bloom filter + 60 mill queries on >l3 filter including  hashing.. decentish i guess
+rapid_hash
 
 v_log entrances and exits;
 
@@ -184,4 +188,5 @@ invent a searchable compression file format for sst
 unikernel 
 io uring optimizations, option for block device
 record value cache integrated with memtable
+FUSE oh fuck 
 
