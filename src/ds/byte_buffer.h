@@ -151,6 +151,12 @@ static inline uint64_t read_int64(byte_buffer *buffer){
     buffer->read_pointer += sizeof(uint64_t);
     return dest;
 }
+static inline uint8_t read_byte(byte_buffer *buffer){
+    uint8_t dest = 0;
+    memcpy(&dest, buffer->buffy + buffer->read_pointer, sizeof(uint8_t));
+    buffer->read_pointer += sizeof(uint8_t);
+    return dest;
+}
 static inline int write_int64(byte_buffer *buffer, const uint64_t src){
     memcpy(buffer->buffy + buffer->curr_bytes, &src, sizeof(uint64_t));
     buffer->curr_bytes += sizeof(uint64_t);

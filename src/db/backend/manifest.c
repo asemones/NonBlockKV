@@ -1,34 +1,68 @@
 #include "manifest.h"
 
-/* we can just use an f_str to represent stuff
-*/
-static int flush_manifest_buffer(manifest *w, manifest_cmd type, f_str k);
-static uint64_t add_to_buffer_generic(byte_buffer * b, manifest_cmd type, f_str key);
-static uint64_t add_to_buffer( byte_buffer * b,f_str key);
+
+
+
+typedef struct manifest_record{
+    void * data_src;
+    manifest_cmd type;
+    uint16_t len;
+} manifest_record;
+
+static int m_rc_size(const manifest_record r){
+    return r.len + sizeof(r.len) + sizeof(r.type);
+}
+static inline int m_rc_hdr_s(){
+    return 3;
+}
+static inline manifest_record make_record(const manifest_cmd cmd, void * data, uint16_t d_len){
+   manifest_record record;
+   record.data_src = data;
+   record.len =  d_len;
+   record.type = cmd;
+   return record;
+}
+static inline int writ_record_hdr(byte_buffer * b, const manifest_record r){
+    int len  =0;
+    write_byte(b, r.type);
+    write_int16(b, r.len);
+    len += m_rc_hdr_s();
+    return len;
+}
+static int flush_atomic_add(manifest *w, const manifest_record r);
+static uint64_t add_to_buffer_generic(byte_buffer * b, const manifest_record r);
+
 
 static int rotate_manifest_segment(manifest * w);
+static int commit_buffer(manifest *w);
 /*load and parse manifest.
 this is just a fat switch to apply all of the change*/
 static int manifest_parse(manifest * w, byte_buffer * b){
-
+    return 0;
 }
-static int write_md_generic(manifest *w, manifest_cmd type,f_str key) {
+static inline int get_b_swap_size(uint64_t base){
+    return base - m_rc_hdr_s();
+}
+static inline int do_rotation_needed(){
+    return 0;
+}
+static int write_md_generic(manifest *w,const manifest_record r) {
     if (!w) return FAILED_TRANSCATION;
 
     int ret = 0;
-    uint64_t data_size = key.len;
+    uint64_t data_size = m_rc_size(r);
     manifest_seg_mgr*mgr = &w->segments_manager;
     manifest_segment *current_segment = &mgr->segments[mgr->current_segment_idx]; 
 
  
-    bool rotation_needed = (current_segment->current_size + data_size > mgr->segment_capacity);
+    bool rotation_needed = (current_segment->current_size + data_size > get_b_swap_size(mgr->segment_capacity));
     bool values_written  = false;
     if (rotation_needed) {
 
         ret = rotate_manifest_segment(w);
         if (ret != 0) return FAILED_TRANSCATION;
         if (w->manifest_buffer && w->manifest_buffer->curr_bytes > 0) {
-            ret = flush_manifest_buffer(w, type, key);
+            ret = flush_atomic_add(w,r);
             if (ret < 0) {
                 fprintf(stderr, "Error flushing manifest buffer after rotation\n");
                 return FAILED_TRANSCATION;
@@ -40,7 +74,7 @@ static int write_md_generic(manifest *w, manifest_cmd type,f_str key) {
 
     bool buffer_flush_needed = (w->manifest_buffer && (w->manifest_buffer->curr_bytes + data_size > w->flush_cadence));
     if (buffer_flush_needed) {
-        ret = flush_manifest_buffer(w, type, key);
+        ret = flush_atomic_add(w,r);
         if (ret < 0) {
             fprintf(stderr, "Error flushing manifest buffer before adding new data\n");
             return FAILED_TRANSCATION;
@@ -56,7 +90,7 @@ static int write_md_generic(manifest *w, manifest_cmd type,f_str key) {
         return 0;
     }
     int written_to_buffer = 0;
-    ret =  add_to_buffer_generic(w->manifest_buffer, type, key);
+    ret =  add_to_buffer_generic(w->manifest_buffer,r);
     if (ret < 0) {
         fprintf(stderr, "Error writing key to manifest buffer\n");
         return FAILED_TRANSCATION;
@@ -69,19 +103,16 @@ static int write_md_generic(manifest *w, manifest_cmd type,f_str key) {
 }
 
 int man_f_add(manifest* w,  sst_f_inf * val){
-    f_str sst_fat_ptr;
-    sst_fat_ptr.mem = val;
-    sst_fat_ptr.len = sst_md_serialized_len(val);
-    return write_md_generic(w, FILE_ADD, sst_fat_ptr);
+    return write_md_generic(w, make_record(FILE_ADD, val,  sst_md_serialized_len(val)));
 }
 int man_f_del(manifest* w, sst_f_inf * val){
-    f_str sst_fat_ptr;
-    sst_fat_ptr.mem = val;
-    sst_fat_ptr.len = sst_md_str(val);
-    return write_md_generic(w, FILE_DELTE, sst_fat_ptr);
+    return write_md_generic(w, make_record(FILE_DELTE, val,  sst_md_str(val)));
 }
+/*this will NEVER preform an atomic flush write. as such, we can safely call a buffer flush
+without two disk fsyncs*/
 int man_f_commit(manifest* w){
-    return flush_manifest_buffer(w, MD_COMMIT,f_str_empty());
+    write_md_generic(w, make_record(MD_COMMIT, NULL,0));
+    return commit_buffer(w);
 }
 static void write_sst_strs(byte_buffer * b, sst_f_inf * in){
     write_buffer(b, in->file_name, MAX_F_N_SIZE);
@@ -100,7 +131,6 @@ static void read_sst_md(byte_buffer * b, sst_f_inf * in){
     in->compr_info.dict_len=read_int64(b);
     read_buffer(b,&in->time,sizeof(in->time));
     in->block_start=read_int64(b);
-    in->length = read_int64(b);
 
 }
 static void seralize_sst_md_all(byte_buffer * b, sst_f_inf * in){
@@ -126,24 +156,26 @@ static uint64_t add_to_buffer_f_delete(byte_buffer * b, sst_f_inf * in){
 Earlier, the amount of data to be persisted is calcuilated and stored
 in the f_str key len because i am lazy and didnt want to write a bunch of duplicate code.
 is it a good idea? NO. but thats why this comment exists :/ */
-static uint64_t add_to_buffer_generic(byte_buffer * b, manifest_cmd type, f_str key){
-    write_byte(b, type);
-
-    switch(type){
+static uint64_t add_to_buffer_generic(byte_buffer * b, const manifest_record r){
+    writ_record_hdr(b,r );
+    switch(r.type){
         case FILE_ADD:
-            add_to_buffer_f_add(b,  (sst_f_inf*)key.mem);
-            return key.len;
+            add_to_buffer_f_add(b,  (sst_f_inf*)r.data_src);
+            break;
+       
         case FILE_DELTE:
-            add_to_buffer_f_delete(b, (sst_f_inf*)key.mem);
-            return key.len;
+            add_to_buffer_f_delete(b, (sst_f_inf*)r.data_src);
+            break;
+            
+        case MD_COMMIT:
+            break;// on commit, do not write a damn thing. this allows us to prevent strange edge case by blocking 
+            //size 1 results from being written. since smallest key size is 2/4 bytes, we may set the limit to one less byte than the flush_size.
+            // this prevents "double flush" circumstances when the md buffer gets flushed to disk but the md commit cmd doesnt fit
         default:
-            return add_to_buffer(b,key);
+            write_buffer(b, r.data_src, r.len);
+            break;
     }
-}
-static uint64_t add_to_buffer( byte_buffer * b,f_str key){
-    uint64_t ret =0;
-    ret += write_fstr(b, key);
-    return ret;
+    return m_rc_size(r);
 }
 /*the choice: metadata stored in manifest, or their respective files
 pro for files: easy api for commits -> cannot be resolved easily
@@ -164,13 +196,13 @@ static void serialize_manifest_metadata(manifest *w, byte_buffer *b) {
     write_buffer(b, (char*)&w->total_len, sizeof(w->total_len));
     write_buffer(b, (char*)&w->segments_manager.current_segment_idx, sizeof(w->segments_manager.current_segment_idx));
     write_buffer(b, (char*)&w->segments_manager.segments[w->segments_manager.current_segment_idx].current_size, sizeof(size_t));
-    write_int64(b, w->snapshot_end);
+    write_int64(b, w->snapshot_ptr);
 }
 static bool deserialize_manifest_metadata(manifest *w, byte_buffer *b) {
     read_buffer(b, (char*)&w->total_len, sizeof(w->total_len));
     read_buffer(b, (char*)&w->segments_manager.current_segment_idx, sizeof(w->segments_manager.current_segment_idx));
     read_buffer(b, (char*)&w->segments_manager.segments[w->segments_manager.current_segment_idx].current_size, sizeof(size_t));
-    w->snapshot_end = read_int64(b);
+    w->snapshot_ptr = read_int64(b);
     if (w->segments_manager.current_segment_idx < 0 || w->segments_manager.current_segment_idx >= w->segments_manager.num_segments) {
         fprintf(stderr, "Warning: Invalid current_segment_idx (%d) read from manifest metadata. Resetting.\n", w->segments_manager.current_segment_idx);
         w->segments_manager.current_segment_idx = 0;
@@ -204,7 +236,28 @@ static int read_segement_header(byte_buffer * stream, char * time) {
     read_buffer(stream, time, size);
     return size;
 }
-static int flush_manifest_buffer(manifest *w, manifest_cmd type, f_str k) {
+static int commit_buffer(manifest *w){
+    manifest_seg_mgr*mgr = &w->segments_manager;
+    manifest_segment *current_segment = &mgr->segments[mgr->current_segment_idx];
+    db_FILE *file_ctx = clone_ctx(current_segment->model);
+
+
+    byte_buffer *buffer_to_flush = w->manifest_buffer;
+    w->manifest_buffer = select_buffer(w->flush_cadence);
+
+    set_context_buffer(file_ctx, buffer_to_flush);
+    size_t flush_size = buffer_to_flush->curr_bytes;
+    size_t write_offset = current_segment->current_size - flush_size;
+    int submission_result = dbio_write(file_ctx, write_offset, flush_size);
+    dbio_fsync(file_ctx);
+
+
+    return_ctx(file_ctx);
+    return_buffer(buffer_to_flush);
+    return submission_result;
+
+}
+static int flush_atomic_add(manifest *w, const manifest_record r) {
     if (!w || !w->manifest_buffer || w->manifest_buffer->curr_bytes == 0) {
         return 0;
     }
@@ -213,13 +266,16 @@ static int flush_manifest_buffer(manifest *w, manifest_cmd type, f_str k) {
     manifest_segment *current_segment = &mgr->segments[mgr->current_segment_idx];
     byte_buffer *buffer_to_flush = w->manifest_buffer;
     size_t flush_size = buffer_to_flush->curr_bytes;
-    size_t write_offset = current_segment->current_size;
+    size_t write_offset = current_segment->current_size - flush_size;
 
     db_FILE *file_ctx = clone_ctx(current_segment->model);
     if (!file_ctx) {
         fprintf(stderr, "CRITICAL: No db_FILE available in pool for segment %d. Aborting.\n", mgr->current_segment_idx);
         exit(EXIT_FAILURE);
     }
+    /*write type referring to a flush so the parser knows to skip to the next 4k aligned pg*/
+
+    current_segment->current_size += add_to_buffer_generic(w->manifest_buffer, make_record(MD_FLUSH, NULL, 0));
     w->manifest_buffer = select_buffer(w->flush_cadence);
     if (current_segment->current_size + w->manifest_buffer->max_bytes > w->segments_manager.segment_capacity){
         char buf [128];
@@ -234,8 +290,8 @@ static int flush_manifest_buffer(manifest *w, manifest_cmd type, f_str k) {
         return_ctx(file_ctx);
         exit(EXIT_FAILURE);
     }
-    
-    current_segment->current_size += add_to_buffer_generic(w->manifest_buffer, type, k);
+    current_segment->current_size += add_to_buffer_generic(w->manifest_buffer, r);
+
     
     set_context_buffer(file_ctx, buffer_to_flush);
 
@@ -347,7 +403,7 @@ manifest* init_manifest(byte_buffer *b, uint64_t seg_cap) {
 as such, since all commands should be submmited beforehand, no special dump is required*/
 void kill_manifest(manifest *w) {
     if (!w) return;
-    if (flush_manifest_buffer(w ,KILL_LOG, f_str_empty()) < 0) {
+    if (man_f_commit(w) < 0) {
         fprintf(stderr, "Warning: Error during final manifest buffer flush in kill_manifest.\n");
     }
     w->meta_ctx->callback_arg = aco_get_arg();

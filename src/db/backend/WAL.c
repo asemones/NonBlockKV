@@ -30,7 +30,7 @@ static int update_md(WAL *w){
                 return -1;
         } 
         else {
-                dbio_fsync(w->meta_ctx);
+            dbio_fsync(w->meta_ctx);
         }
     }
 }
@@ -88,7 +88,7 @@ static int flush_wal_buffer(WAL *w, f_str k, f_str v) {
     WAL_segment *current_segment = &mgr->segments[mgr->current_segment_idx];
     byte_buffer *buffer_to_flush = w->wal_buffer;
     size_t flush_size = buffer_to_flush->curr_bytes;
-    size_t write_offset = current_segment->current_size;
+    size_t write_offset = current_segment->current_size - flush_size;
 
     db_FILE *file_ctx = clone_ctx(current_segment->model);
     if (!file_ctx) {

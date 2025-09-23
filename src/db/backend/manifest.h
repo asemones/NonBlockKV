@@ -46,13 +46,14 @@ typedef struct manifest {
     size_t total_len;
     bool rotating;
     int flush_cadence;
-    uint64_t snapshot_end;  
+    uint64_t snapshot_ptr;  
 } manifest;
 typedef enum manifest_cmd{
     KILL_LOG,
     FILE_ADD,
     FILE_DELTE,
     MD_COMMIT,
+    MD_FLUSH,
     REPLAY,
     RECOVER
 }manifest_cmd;
