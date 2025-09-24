@@ -55,7 +55,9 @@ static bool deserialize_wal_metadata(WAL *w, byte_buffer *b) {
     }
     return true;
 }
-
+static int get_wal_bsize(uint64_t base){
+    return base - sizeof(uint32_t);
+}
 static int rotate_wal_segment(WAL *w) {
     WAL_segments_manager *mgr = &w->segments_manager;
     int current_idx = mgr->current_segment_idx;
@@ -79,6 +81,27 @@ static int read_segement_header(byte_buffer * stream, char * time) {
     read_buffer(stream, time, size);
     return size;
 }
+static int commit_wal_buffer(WAL * w){
+    WAL_segments_manager * mgr = &w->segments_manager;
+    WAL_segment *current_segment = &mgr->segments[mgr->current_segment_idx];
+    db_FILE *file_ctx = clone_ctx(current_segment->model);
+
+
+    byte_buffer *buffer_to_flush = w->wal_buffer;
+    w->wal_buffer = select_buffer(w->flush_cadence);
+
+    set_context_buffer(file_ctx, buffer_to_flush);
+    size_t flush_size = buffer_to_flush->curr_bytes;
+    size_t write_offset = current_segment->current_size - flush_size;
+    write_int32(buffer_to_flush, 0); //write an int at the end to signify end of data
+    int submission_result = dbio_write(file_ctx, write_offset, flush_size);
+    dbio_fsync(file_ctx);
+
+
+    return_ctx(file_ctx);
+    return_buffer(buffer_to_flush);
+    return submission_result;
+}
 static int flush_wal_buffer(WAL *w, f_str k, f_str v) {
     if (!w || !w->wal_buffer || w->wal_buffer->curr_bytes == 0) {
         return 0;
@@ -95,6 +118,7 @@ static int flush_wal_buffer(WAL *w, f_str k, f_str v) {
         fprintf(stderr, "CRITICAL: No db_FILE available in pool for segment %d. Aborting.\n", mgr->current_segment_idx);
         exit(EXIT_FAILURE);
     }
+    write_int32(buffer_to_flush, 0); //write an int at the end to signify end of data
     w->wal_buffer = select_buffer(GLOB_OPTS.WAL_BUFFERING_SIZE);
     if (current_segment->current_size + w->wal_buffer->max_bytes > w->segments_manager.segment_capacity){
         char buf [128];
@@ -232,7 +256,7 @@ int write_WAL(WAL *w, f_str key, f_str value) {
     WAL_segment *current_segment = &mgr->segments[mgr->current_segment_idx]; 
 
  
-    bool rotation_needed = (current_segment->current_size + data_size > mgr->segment_capacity);
+    bool rotation_needed = (get_wal_bsize(current_segment->current_size) + data_size > mgr->segment_capacity);
     bool values_written  = false;
     if (rotation_needed) {
 

@@ -133,17 +133,6 @@ static void read_sst_md(byte_buffer * b, sst_f_inf * in){
     in->block_start=read_int64(b);
 
 }
-static void seralize_sst_md_all(byte_buffer * b, sst_f_inf * in){
-    write_sst_strs(b, in);
-    write_int64(b, in->length);
-    write_int64(b, in->compressed_len);
-    write_byte(b, in->use_dict_compression);
-    write_int64(b, in->compr_info.dict_offset);
-    write_int64(b, in->compr_info.dict_len);
-    write_buffer(b, &in->time, sizeof(in->time));
-    write_int64(b, in->block_start);
-    write_int64(b, in->level);
-}
 static uint64_t add_to_buffer_f_add(byte_buffer * b, sst_f_inf * in){
     seralize_sst_md_all(b, in);
     return 0;

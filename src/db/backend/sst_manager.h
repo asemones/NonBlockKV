@@ -60,4 +60,5 @@ size_t find_sst_file(list *sst_files, f_str key);
 sst_f_inf * get_sst(sst_manager * mana, f_str targ, int level);
 sst_f_inf *  allocate_sst(sst_manager * mana,  uint64_t num_keys, int level);
 void gen_sst_fn(sst_manager * mana, char * out);
+void seralize_sst_all(byte_buffer * b, sst_manager * mana);
 #endif

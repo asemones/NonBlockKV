@@ -340,5 +340,20 @@ void free_sst_sst_man(sst_manager * mana, sst_f_inf * inf, int level){
 }
 void gen_sst_fn(sst_manager * mana, char * out){
     gen_file_name(out, new_value(&mana->name_gen), SST_F_XT, 3);
-
+}
+void seralize_sst_all(byte_buffer * b, sst_manager * mana){
+    sst_f_inf * arr = mana->l_0->arr;
+    for (int i = 0; i < mana->l_0->len; i++){
+        seralize_sst_md_all(b,&arr[i]);
+    }
+    for (int i = 0; i < 6; i++){
+        {
+            sst_sl * sl = mana->non_zero_l[i];
+            sst_node * iter=  sl->header->forward[0];
+            while(iter != NULL){
+                seralize_sst_md_all(b, iter->inf);
+                iter = iter->forward[0];
+            }
+        }
+    }
 }

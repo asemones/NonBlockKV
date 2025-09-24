@@ -420,3 +420,14 @@ uint64_t sst_md_str(const sst_f_inf *s){
     return n;
 
 }
+void seralize_sst_md_all(byte_buffer * b, sst_f_inf * in){
+    write_sst_strs(b, in);
+    write_int64(b, in->length);
+    write_int64(b, in->compressed_len);
+    write_byte(b, in->use_dict_compression);
+    write_int64(b, in->compr_info.dict_offset);
+    write_int64(b, in->compr_info.dict_len);
+    write_buffer(b, &in->time, sizeof(in->time));
+    write_int64(b, in->block_start);
+    write_int64(b, in->level);
+}

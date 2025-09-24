@@ -634,3 +634,17 @@ void io_prep_in(struct io_manager * io_manager, io_config config, aio_callback s
     }
 
 }
+int do_rename(struct io_manager * io_manager, const char * fn, const char * new,  struct db_FILE * req ){
+    struct io_uring_sqe *sqe = io_uring_get_sqe(&io_manager->ring);
+    req->callback_arg = aco_get_arg();
+    io_uring_prep_renameat(sqe, AT_FDCWD, fn, AT_FDCWD, new, 0);
+    req->op = RENAME;
+    io_uring_sqe_set_data(sqe, req);
+     if (man->pending_sqe_count == 0) {
+        clock_gettime(CLOCK_MONOTONIC, &man->first_sqe_timestamp);
+    }
+    man->pending_sqe_count++;
+    aco_yield();
+    return req->response_code;
+
+}

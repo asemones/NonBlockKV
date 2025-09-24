@@ -25,6 +25,7 @@ enum operation{
     WRITE,
     OPEN,
     CLOSE,
+    RENAME
 
 };
 enum post_io_behavior{
