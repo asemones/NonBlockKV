@@ -84,6 +84,7 @@ static inline void return_ctx(struct db_FILE * request){
 static inline db_FILE*  get_ctx(){
     return request_struct(man->io_requests);
 }
+int do_rename(struct io_manager * io_manager, const char * fn, const char * new,  struct db_FILE * req );
 static inline int dbio_rename(struct db_FILE * request, const char * old, const char * new){
     return do_rename(man, old, new, request);
 }

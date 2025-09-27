@@ -102,7 +102,7 @@ static inline void rpc_table_destroy(rpc_table_t* table) {
 }
 
 static inline uint32_t rpc_hash(uint64_t id, size_t mask) {
-    return id % mask;
+    return id & mask; //modulo is a slow travesty and should be banned
 }
 
 

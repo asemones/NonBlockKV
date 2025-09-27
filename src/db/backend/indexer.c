@@ -420,6 +420,20 @@ uint64_t sst_md_str(const sst_f_inf *s){
     return n;
 
 }
+void read_sst_md(byte_buffer * b, sst_f_inf * in){
+    read_buffer(b, in->file_name, MAX_F_N_SIZE);
+    read_fstr(b, &in->min);
+    read_fstr(b,&in->max);
+    in->length=read_int64(b);
+    in->compressed_len=read_int64(b);
+    in->use_dict_compression=read_byte(b);
+    in->compr_info.dict_offset=read_int64(b);
+    in->compr_info.dict_len=read_int64(b);
+    read_buffer(b,&in->time,sizeof(in->time));
+    in->block_start=read_int64(b);
+    in->length = read_int64(b);
+
+}
 void seralize_sst_md_all(byte_buffer * b, sst_f_inf * in){
     write_sst_strs(b, in);
     write_int64(b, in->length);

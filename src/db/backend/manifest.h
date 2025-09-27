@@ -19,6 +19,7 @@
 #include "../../ds/structure_pool.h" 
 #include "../../util/multitask_primitives.h"
 #include "../../util/stringutil.h"
+#include "sst_manager.h"
 #include "indexer.h"
 
 #define NUM_MD_SEG 2
@@ -48,7 +49,8 @@ typedef struct manifest {
     int flush_cadence;
     uint64_t snapshot_ptr;  
 } manifest;
-typedef enum manifest_cmd{
+typedef uint8_t manifest_cmd;
+enum m {
     KILL_LOG,
     FILE_ADD,
     FILE_DELTE,
@@ -56,7 +58,7 @@ typedef enum manifest_cmd{
     MD_FLUSH,
     REPLAY,
     RECOVER
-}manifest_cmd;
+};
 
 manifest* init_manifest(byte_buffer *b, uint64_t seg_cap); 
 int mainfest_flush_block(manifest * m);

@@ -1,6 +1,5 @@
 #include "sst_manager.h"
 
-
 index_cache create_ind_cache(uint64_t max_partition_size, uint64_t block_index_sz, uint64_t mem_size){
     index_cache cache;
     cache.capacity = mem_size;
@@ -185,9 +184,12 @@ sst_allocator create_sst_all(const sst_man_sst_inf_cf *config, int cached_levels
 sst_manager create_manager(sst_man_sst_inf_cf config, uint64_t mem_size){
     sst_manager mana;
     mana.config = config;
-    mana.l_0 = List(32, sizeof(sst_f_inf), false);
-    for (int i = 0; i < 6; i++){
-        mana.non_zero_l[i] = create_sst_sl(1024);
+    mana.num_levels = 7;
+    mana.levels[0].sorted_list = List(32, sizeof(sst_f_inf), false);
+    mana.levels[0].count = 0;
+    for (int i = 1; i < MAX_LEVEL_SETTINGS; i++){
+        mana.levels[i].sl = create_sst_sl(1024);
+        mana.levels[i].count = 0;
     }
     mana.cached_levels = 1;
 
@@ -202,33 +204,30 @@ sst_manager create_manager(sst_man_sst_inf_cf config, uint64_t mem_size){
     mana.sst_memory = create_sst_all(&config, mana.cached_levels);
     return mana;
 }
-void free_manager(sst_manager * manager){
-    free_ind_cache(&manager->cache);
-    free_list(manager->l_0, NULL);
-    for (int i = 0; i < 6; i++){
-        freesst_sl(manager->non_zero_l[i]);
-    }
-}
+
 void add_sst(sst_manager * mana, sst_f_inf* sst, int level){
-    if (level <= 0){
-        insert(mana->l_0, sst);
+    if (level == 0){
+        insert(mana->levels[0].sorted_list, sst);
     } else {
-        sst_insert_list(mana->non_zero_l[level], sst);
+        sst_insert_list(mana->levels[level].sl, sst);
     }
+    mana->levels[level].count++;
 }
 void remove_sst(sst_manager * mana, sst_f_inf * sst, int level){
-    if (level <= 0){
-        sst_f_inf * l = mana->l_0->arr;
-        for (size_t i = 0; i < mana->l_0->len; i++){
+    if (level == 0){
+        sst_f_inf * l = mana->levels[0].sorted_list->arr;
+        for (size_t i = 0; i < mana->levels[0].sorted_list->len; i++){
             if (&l[i] == sst){
                 free_sst_inf(sst);
-                remove_at(mana->l_0, i);
+                remove_at(mana->levels[0].sorted_list, i);
+                mana->levels[level].count--;
                 return;
             }
         }
     } else {
-        sst_delete_element(mana->non_zero_l[level], sst->min);
+        sst_delete_element(mana->levels[level].sl, sst->min);
         slfree_full_slab(&mana->sst_memory.non_cached, sst);
+        mana->levels[level].count--;
     }
 }
 size_t find_sst_file(list *sst_files, f_str key) {
@@ -251,18 +250,19 @@ size_t find_sst_file(list *sst_files, f_str key) {
     return -1;
 }
 sst_f_inf * get_sst(sst_manager * mana, f_str targ, int level){
-    if (level <= 0){
-        size_t ind = find_sst_file(mana->l_0, targ);
-        return (ind != -1) ? at(mana->l_0, ind) : NULL;
+    if (level == 0){
+        size_t ind = find_sst_file(mana->levels[0].sorted_list, targ);
+        return (ind != -1) ? at(mana->levels[0].sorted_list, ind) : NULL;
     } else {
-        sst_node * node = sst_search_list_prefix(mana->non_zero_l[level], targ);
+        sst_node * node = sst_search_list_prefix(mana->levels[level].sl, targ);
         return (node) ? node->inf : NULL;
     }
 }
 void free_sst_man(sst_manager * man){
-    free_list(man->l_0, &free_sst_inf);
-    for (int i = 0; i < 6; i++){
-        freesst_sl(man->non_zero_l[i]);
+    free_ind_cache(&man->cache);
+    free_list(man->levels[0].sorted_list, &free_sst_inf);
+    for (int i = 1; i < MAX_LEVEL_SETTINGS; i++){
+        freesst_sl(man->levels[i].sl);
     }
 }
 size_t find_block(list * block_indexs, const f_str key) {
@@ -331,7 +331,7 @@ block_index * try_get_relevant_block(sst_manager * mana, sst_f_inf * inf, const 
     return get_block(mana, inf, u, level);
 }
 uint64_t get_num_l_0(sst_manager * mana){
-    return mana->l_0->len;
+    return mana->levels[0].sorted_list->len;
 }
 void free_sst_sst_man(sst_manager * mana, sst_f_inf * inf, int level){
     if (level <= 0 ){
@@ -341,19 +341,44 @@ void free_sst_sst_man(sst_manager * mana, sst_f_inf * inf, int level){
 void gen_sst_fn(sst_manager * mana, char * out){
     gen_file_name(out, new_value(&mana->name_gen), SST_F_XT, 3);
 }
-void seralize_sst_all(byte_buffer * b, sst_manager * mana){
-    sst_f_inf * arr = mana->l_0->arr;
-    for (int i = 0; i < mana->l_0->len; i++){
-        seralize_sst_md_all(b,&arr[i]);
+static void seralize_sst_level_info(byte_buffer * b, sst_level * lvls, uint64_t n_levels){
+    uint64_t spot  = reserve_checksum(b);
+    write_int64(b, n_levels);
+    for (int i  =0; i < n_levels; i++ ){
+        uint32_t num = lvls[i].count;
+        write_int32(b, num);
     }
-    for (int i = 0; i < 6; i++){
-        {
-            sst_sl * sl = mana->non_zero_l[i];
-            sst_node * iter=  sl->header->forward[0];
-            while(iter != NULL){
-                seralize_sst_md_all(b, iter->inf);
-                iter = iter->forward[0];
-            }
+    do_checksum(b, spot);
+}
+uint64_t get_md_size_lwr_bnd(uint64_t n_levels, sst_level * lvls){
+    uint64_t ret = 0;
+    uint64_t assumed_max = 64u;
+    sst_f_inf dummy;
+    for (int i = 0; i < n_levels; i++){
+        uint32_t num = lvls[i].count;
+        uint64_t size=sizeof(sst_f_inf) + (assumed_max * 2); /*incredibly lazy, but overall md size will be small and snapshots are rare*/
+        ret += num * size;
+    }
+    return ret;
+}
+
+void seralize_sst_all(byte_buffer * b, sst_manager * mana){
+    seralize_sst_level_info(b,mana->levels, mana->num_levels);
+    sst_f_inf * arr = mana->levels[0].sorted_list->arr;
+    for (int i = 0; i < mana->levels[0].sorted_list->len; i++){
+        uint64_t spot = reserve_checksum(b);
+        seralize_sst_md_all(b,&arr[i]);
+        do_checksum(b, spot);
+    }
+    for (int i = 1; i < MAX_LEVEL_SETTINGS; i++){
+        sst_sl * sl = mana->levels[i].sl;
+        sst_node * iter=  sl->header->forward[0];
+        while(iter != NULL){
+            uint64_t spot = reserve_checksum(b);
+            seralize_sst_md_all(b, iter->inf);
+            iter = iter->forward[0];
+            do_checksum(b, spot);
         }
     }
 }
+

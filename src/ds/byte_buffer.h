@@ -5,6 +5,7 @@
 #include "../util/alloc_util.h"
 #include <fcntl.h>
 #include <unistd.h>
+#include "checksum.h"
 #include "../util/maths.h"
 #ifndef BYTE_BUFFER_H
 #define BYTE_BUFFER_H
@@ -184,5 +185,8 @@ static inline int write_byte(byte_buffer *buffer, const uint8_t src){
     return (int)sizeof(uint16_t);
 }
 byte_buffer * create_empty_buffer();
+uint64_t reserve_checksum(byte_buffer * b);
+void pad_nearest_x(byte_buffer * b, uint32_t x);
+void do_checksum(byte_buffer * b, uint64_t spot);
 #endif
 

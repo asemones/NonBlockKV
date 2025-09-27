@@ -34,11 +34,17 @@ typedef struct {
     uint64_t block_index_size;
     level_options *levels;
 } sst_man_sst_inf_cf;
-
+typedef struct sst_level{
+    union{
+        list * sorted_list;
+        sst_sl * sl;
+    };
+    uint32_t count;
+}sst_level;
 typedef struct sst_manager{
-    list * l_0;
-    sst_sl *non_zero_l[6];
+    sst_level levels[MAX_LEVEL_SETTINGS];
     int cached_levels;
+    uint32_t num_levels;
     index_cache cache;
     sst_allocator sst_memory;
     uint64_t size_per_block;
@@ -61,4 +67,5 @@ sst_f_inf * get_sst(sst_manager * mana, f_str targ, int level);
 sst_f_inf *  allocate_sst(sst_manager * mana,  uint64_t num_keys, int level);
 void gen_sst_fn(sst_manager * mana, char * out);
 void seralize_sst_all(byte_buffer * b, sst_manager * mana);
+uint64_t get_md_size_lwr_bnd(uint64_t n_levels, sst_level * lvls);
 #endif

@@ -52,14 +52,15 @@ extern "C" {
 
 typedef struct {
     void*  ptr;
-    size_t sz;
-    size_t valid_sz;
+    uint16_t sz;
+    uint16_t valid_sz;
     // max copy size in bytes
-    size_t max_cpsz;
+    uint16_t max_cpsz;
+    uint16_t _reserved; 
     // copy from share stack to this save stack
-    size_t ct_save;
+    //size_t ct_save;
     // copy from this save stack to share stack 
-    size_t ct_restore;
+    //size_t ct_restore;
 } aco_save_stack_t;
 
 struct aco_s;
@@ -70,13 +71,13 @@ typedef struct {
     size_t sz;
     void*  align_highptr;
     void*  align_retptr;
-    size_t align_validsz;
-    size_t align_limit;
+    uint32_t align_validsz;
+    uint32_t align_limit;
     aco_t* owner;
 
     char guard_page_enabled;
     void* real_ptr;
-    size_t real_sz;
+    uint32_t real_sz;
 
 #ifdef ACO_USE_VALGRIND
     unsigned long valgrind_stk_id;

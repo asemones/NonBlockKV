@@ -34,7 +34,30 @@ byte_buffer * create_empty_buffer(){
     memset(buffer, 0, sizeof(byte_buffer));
     return buffer;
 }
+uint64_t reserve_checksum(byte_buffer * b){
+    uint64_t ret = b->curr_bytes;
+    padd_buffer(b, sizeof(uint32_t));
+    return ret;
+}
 
+static inline void writeback_checksum(byte_buffer * b, uint32_t checksum, uint64_t checksum_loc){
+    memcpy(&b->buffy[checksum_loc], &checksum, sizeof(checksum));
+}
+void do_checksum(byte_buffer * b, uint64_t checksum_spot) {
+    uint64_t payload_start_offset = checksum_spot + sizeof(uint32_t);
+    uint64_t payload_len = b->curr_bytes - payload_start_offset;
+    if (payload_len == 0) {
+        writeback_checksum(b, 0, checksum_spot);
+        return;
+    }
+    const char* payload_ptr = buf_ind(b, payload_start_offset);
+    uint32_t checksum = crc32(payload_ptr, payload_len);
+    writeback_checksum(b, checksum, checksum_spot);
+}
+void pad_nearest_x(byte_buffer * b, uint32_t x){
+    uint64_t nearest_x_dist = (b->curr_bytes % x);
+    padd_buffer(b, nearest_x_dist);
+}
 /*resizes buffer to a size of atleast min-size bytes*/
 int buffer_resize(byte_buffer * b, size_t min_size){
     fprintf(stdout, "Buffer resize from %zu to %zu bytes. This may be a memory leak.\n"

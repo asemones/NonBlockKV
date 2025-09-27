@@ -282,3 +282,4 @@ merge_data decode_next_pair_iter(const char * block_start, uint16_t * offsets, u
 uint64_t sst_md_serialized_len(const sst_f_inf *s);
 uint64_t sst_md_str(const sst_f_inf *s);
 void seralize_sst_md_all(byte_buffer * b, sst_f_inf * in);
+void read_sst_md(byte_buffer * b, sst_f_inf * in);

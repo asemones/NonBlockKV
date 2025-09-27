@@ -189,4 +189,24 @@ unikernel
 io uring optimizations, option for block device
 record value cache integrated with memtable
 FUSE oh fuck 
+consider a batched coroutine design
+
+coroutine libary rewrite is our next focus
+we can be smart about stacks by stuffing them into chunks
+by sacrificing a few function calls, we can dynamically bound stack usage to a certain size
+thus leading to a possbility of stuffing a bunch of micro stacks into 4kb physical page
+and when we want to run them, we get excellent locality.
+the cost is a func table check + 10 ns stack allocation
+however, if we are extra smart we cna keep those batches together and reserve them for those class of functions
+removing stack allocation 
+
+
+this provides the following bonuses over child approach
+1. potential for much less physical memory usage
+2. potential for much less virtual memory usage
+3. drastically improved locality; every 4kb page batch is local
+4. still allows for flexible stack usage for the chunky functions
+5. internal frag limited to 512 alligned
+
+checksum more stuff 
 

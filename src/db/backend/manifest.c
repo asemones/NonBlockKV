@@ -5,15 +5,15 @@
 
 typedef struct manifest_record{
     void * data_src;
+    uint32_t ck_sm;
     manifest_cmd type;
     uint16_t len;
 } manifest_record;
-
 static int m_rc_size(const manifest_record r){
     return r.len + sizeof(r.len) + sizeof(r.type);
 }
 static inline int m_rc_hdr_s(){
-    return 3;
+    return 7;
 }
 static inline manifest_record make_record(const manifest_cmd cmd, void * data, uint16_t d_len){
    manifest_record record;
@@ -45,6 +45,20 @@ static inline int get_b_swap_size(uint64_t base){
 }
 static inline int do_rotation_needed(){
     return 0;
+}
+static int refresh_md_wrt(manifest * w, byte_buffer * ceral){
+    dbio_write(w->meta_ctx, 0, ceral->curr_bytes);
+    dbio_fsync(w->meta_ctx);
+    return 0;
+}
+static int produce_snapshot(sst_manager * mana, manifest * w){
+    byte_buffer * b = select_buffer(get_md_size_lwr_bnd(mana->num_levels, mana->levels)); 
+    byte_buffer * md_buffer= select_buffer(4096);
+    seralize_sst_md_all(b, w);
+    pad_nearest_x(b, 4096); // allign to 4kb pg
+    w->snapshot_ptr = b->curr_bytes;
+    serialize_manifest_metadata(w, md_buffer);
+
 }
 static int write_md_generic(manifest *w,const manifest_record r) {
     if (!w) return FAILED_TRANSCATION;
@@ -120,19 +134,6 @@ static void write_sst_strs(byte_buffer * b, sst_f_inf * in){
     write_fstr(b,in->max);
 
 }
-static void read_sst_md(byte_buffer * b, sst_f_inf * in){
-    read_buffer(b, in->file_name, MAX_F_N_SIZE);
-    read_fstr(b, &in->min);
-    read_fstr(b,&in->max);
-    in->length=read_int64(b);
-    in->compressed_len=read_int64(b);
-    in->use_dict_compression=read_byte(b);
-    in->compr_info.dict_offset=read_int64(b);
-    in->compr_info.dict_len=read_int64(b);
-    read_buffer(b,&in->time,sizeof(in->time));
-    in->block_start=read_int64(b);
-
-}
 static uint64_t add_to_buffer_f_add(byte_buffer * b, sst_f_inf * in){
     seralize_sst_md_all(b, in);
     return 0;
@@ -146,6 +147,7 @@ Earlier, the amount of data to be persisted is calcuilated and stored
 in the f_str key len because i am lazy and didnt want to write a bunch of duplicate code.
 is it a good idea? NO. but thats why this comment exists :/ */
 static uint64_t add_to_buffer_generic(byte_buffer * b, const manifest_record r){
+    uint64_t checksum_spot = reserve_checksum(b);
     writ_record_hdr(b,r );
     switch(r.type){
         case FILE_ADD:
@@ -164,7 +166,8 @@ static uint64_t add_to_buffer_generic(byte_buffer * b, const manifest_record r){
             write_buffer(b, r.data_src, r.len);
             break;
     }
-    return m_rc_size(r);
+    do_checksum(b, checksum_spot);
+    return  m_rc_size(r);
 }
 /*the choice: metadata stored in manifest, or their respective files
 pro for files: easy api for commits -> cannot be resolved easily

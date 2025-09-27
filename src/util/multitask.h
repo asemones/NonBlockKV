@@ -20,6 +20,9 @@
 #define MAX_RUNTIMES_DEFAULT 512
 #define MAX_SUBTASKS 128
 #define SEED_ID 0
+#define container_of(ptr, type, member) ({ \
+    const typeof( ((type *)0)->member ) *__mptr = (ptr); \
+    (type *)( (char *)__mptr - offsetof(type, member) );})
 #define yield_compute \
     task_t * task = aco_get_arg();\
     task->stat = COMPUTE_YIELD;\
