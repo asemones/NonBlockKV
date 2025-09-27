@@ -434,6 +434,12 @@ void read_sst_md(byte_buffer * b, sst_f_inf * in){
     in->length = read_int64(b);
 
 }
+static void write_sst_strs(byte_buffer * b, sst_f_inf * in){
+    write_buffer(b, in->file_name, MAX_F_N_SIZE);
+    write_fstr(b, in->min);
+    write_fstr(b,in->max);
+
+}
 void seralize_sst_md_all(byte_buffer * b, sst_f_inf * in){
     write_sst_strs(b, in);
     write_int64(b, in->length);

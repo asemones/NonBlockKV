@@ -47,7 +47,8 @@ typedef struct manifest {
     size_t total_len;
     bool rotating;
     int flush_cadence;
-    uint64_t snapshot_ptr;  
+    uint64_t snapshot_ptr; 
+    counter_t ctr; 
 } manifest;
 typedef uint8_t manifest_cmd;
 enum m {

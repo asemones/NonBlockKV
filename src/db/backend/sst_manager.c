@@ -353,7 +353,6 @@ static void seralize_sst_level_info(byte_buffer * b, sst_level * lvls, uint64_t 
 uint64_t get_md_size_lwr_bnd(uint64_t n_levels, sst_level * lvls){
     uint64_t ret = 0;
     uint64_t assumed_max = 64u;
-    sst_f_inf dummy;
     for (int i = 0; i < n_levels; i++){
         uint32_t num = lvls[i].count;
         uint64_t size=sizeof(sst_f_inf) + (assumed_max * 2); /*incredibly lazy, but overall md size will be small and snapshots are rare*/
@@ -370,7 +369,7 @@ void seralize_sst_all(byte_buffer * b, sst_manager * mana){
         seralize_sst_md_all(b,&arr[i]);
         do_checksum(b, spot);
     }
-    for (int i = 1; i < MAX_LEVEL_SETTINGS; i++){
+    for (int i = 1; i < mana->num_levels; i++){
         sst_sl * sl = mana->levels[i].sl;
         sst_node * iter=  sl->header->forward[0];
         while(iter != NULL){

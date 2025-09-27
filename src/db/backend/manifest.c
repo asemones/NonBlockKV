@@ -1,16 +1,15 @@
 #include "manifest.h"
-
+#define MANIFEST_BCKUP_EXT "mbe"
 
 
 
 typedef struct manifest_record{
     void * data_src;
-    uint32_t ck_sm;
     manifest_cmd type;
     uint16_t len;
 } manifest_record;
 static int m_rc_size(const manifest_record r){
-    return r.len + sizeof(r.len) + sizeof(r.type);
+    return r.len + sizeof(r.len) + sizeof(r.type) + sizeof(uint32_t); //checksum
 }
 static inline int m_rc_hdr_s(){
     return 7;
@@ -31,8 +30,6 @@ static inline int writ_record_hdr(byte_buffer * b, const manifest_record r){
 }
 static int flush_atomic_add(manifest *w, const manifest_record r);
 static uint64_t add_to_buffer_generic(byte_buffer * b, const manifest_record r);
-
-
 static int rotate_manifest_segment(manifest * w);
 static int commit_buffer(manifest *w);
 /*load and parse manifest.
@@ -58,6 +55,7 @@ static int produce_snapshot(sst_manager * mana, manifest * w){
     pad_nearest_x(b, 4096); // allign to 4kb pg
     w->snapshot_ptr = b->curr_bytes;
     serialize_manifest_metadata(w, md_buffer);
+    
 
 }
 static int write_md_generic(manifest *w,const manifest_record r) {
@@ -128,12 +126,6 @@ int man_f_commit(manifest* w){
     write_md_generic(w, make_record(MD_COMMIT, NULL,0));
     return commit_buffer(w);
 }
-static void write_sst_strs(byte_buffer * b, sst_f_inf * in){
-    write_buffer(b, in->file_name, MAX_F_N_SIZE);
-    write_fstr(b, in->min);
-    write_fstr(b,in->max);
-
-}
 static uint64_t add_to_buffer_f_add(byte_buffer * b, sst_f_inf * in){
     seralize_sst_md_all(b, in);
     return 0;
@@ -185,10 +177,12 @@ static db_FILE * clone_ctx(db_FILE * ctx){
 }
 static void serialize_manifest_metadata(manifest *w, byte_buffer *b) {
     reset_buffer(b);
+    uint64_t spot = reserve_checksum(b);
     write_buffer(b, (char*)&w->total_len, sizeof(w->total_len));
     write_buffer(b, (char*)&w->segments_manager.current_segment_idx, sizeof(w->segments_manager.current_segment_idx));
     write_buffer(b, (char*)&w->segments_manager.segments[w->segments_manager.current_segment_idx].current_size, sizeof(size_t));
     write_int64(b, w->snapshot_ptr);
+    do_checksum(b, spot);
 }
 static bool deserialize_manifest_metadata(manifest *w, byte_buffer *b) {
     read_buffer(b, (char*)&w->total_len, sizeof(w->total_len));
@@ -314,7 +308,7 @@ manifest* init_manifest(byte_buffer *b, uint64_t seg_cap) {
     w->flush_cadence = 4096;
     for (int i = 0; i < mgr->num_segments; ++i) {
         manifest_segment *seg = &mgr->segments[i];
-        sprintf(seg->filename, "WAL_SEG_%d.bin", i);
+        sprintf(seg->filename, "MAN_SEG_%d.bin", i);
         seg->current_size = 0;
         seg->active = (i == 0);
 

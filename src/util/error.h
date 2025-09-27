@@ -123,4 +123,10 @@ static inline const char* get_error_string(error_codes error) {
             return "Unknown error";
     }
 }
+void panic(error_codes error){
+    switch(error){
+        default:
+    }
+}
+
 
