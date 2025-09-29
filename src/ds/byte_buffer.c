@@ -54,10 +54,35 @@ void do_checksum(byte_buffer * b, uint64_t checksum_spot) {
     uint32_t checksum = crc32(payload_ptr, payload_len);
     writeback_checksum(b, checksum, checksum_spot);
 }
-void pad_nearest_x(byte_buffer * b, uint32_t x){
-    uint64_t nearest_x_dist = (b->curr_bytes % x);
-    padd_buffer(b, nearest_x_dist);
+#include <stdint.h>
+#include <stddef.h>
+#include <stdbool.h>
+
+static inline bool is_pow2(size_t x) { return x && ((x & (x - 1)) == 0); }
+
+static inline size_t align_up(size_t v, size_t a) {
+    size_t r = v % a;
+    return r ? (v + (a - r)) : v;            
 }
+
+static inline size_t align_up_pow2(size_t v, size_t a) {
+    return (v + (a - 1)) & ~(a - 1);
+}
+void pad_nearest_x(struct byte_buffer *b, uint32_t x) {
+    size_t a = x;
+    size_t next = is_pow2(a) ? align_up_pow2(b->curr_bytes, a)
+                              : align_up(b->curr_bytes, a);
+    pad_buffer(b, next - b->curr_bytes);
+}
+
+void b_seek_next_align(struct byte_buffer *b, uint32_t align) {
+    size_t a = align;
+    size_t next = is_pow2(a) ? align_up_pow2(b->read_pointer, a)
+                              : align_up(b->read_pointer, a);
+    b->read_pointer = next;
+}
+
+
 /*resizes buffer to a size of atleast min-size bytes*/
 int buffer_resize(byte_buffer * b, size_t min_size){
     fprintf(stdout, "Buffer resize from %zu to %zu bytes. This may be a memory leak.\n"

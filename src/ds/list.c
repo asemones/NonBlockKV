@@ -291,4 +291,6 @@ int merge_lists(list * merge_into, list * merge_from, compare func){
     return 0;
 
 }
-
+void clear_list(list * m_l){
+    m_l->len = 0;
+}

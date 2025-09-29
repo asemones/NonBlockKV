@@ -209,7 +209,7 @@ int dump_list_ele(list * my_list, int (*item_write_func)(byte_buffer*, void*),
  * @return 0 on success, error code on failure.
  */
 int merge_lists(list * merge_into, list * merge_from, compare func);
-
+void clear_list(list * m_l);
 #endif
 
 

@@ -188,5 +188,6 @@ byte_buffer * create_empty_buffer();
 uint64_t reserve_checksum(byte_buffer * b);
 void pad_nearest_x(byte_buffer * b, uint32_t x);
 void do_checksum(byte_buffer * b, uint64_t spot);
+void b_seek_next_align(struct byte_buffer *b, uint32_t align);
 #endif
 

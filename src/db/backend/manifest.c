@@ -8,6 +8,9 @@ typedef struct manifest_record{
     manifest_cmd type;
     uint16_t len;
 } manifest_record;
+typedef struct manifest_commit_inf{
+    sst_manager * sst_man;
+}manifest_commit_inf;
 static int m_rc_size(const manifest_record r){
     return r.len + sizeof(r.len) + sizeof(r.type) + sizeof(uint32_t); //checksum
 }
@@ -28,14 +31,56 @@ static inline int writ_record_hdr(byte_buffer * b, const manifest_record r){
     len += m_rc_hdr_s();
     return len;
 }
+
 static int flush_atomic_add(manifest *w, const manifest_record r);
 static uint64_t add_to_buffer_generic(byte_buffer * b, const manifest_record r);
 static int rotate_manifest_segment(manifest * w);
 static int commit_buffer(manifest *w);
 /*load and parse manifest.
 this is just a fat switch to apply all of the change*/
-static int manifest_parse(manifest * w, byte_buffer * b){
-    return 0;
+static bool manifest_parse_record(manifest * w, byte_buffer * b, manifest_record * out){
+    uint32_t check_sum = read_int32(b);
+    uint8_t type = read_byte(b);
+    uint16_t len = read_int16(b);
+    uint8_t hdr_incl_len = sizeof(type) + sizeof(len);
+    if (len + hdr_incl_len + b->read_pointer > b->max_bytes){
+        /*obviously corrupted len field*/
+        return false;
+    }
+    /*if len field is corrupted, checksum wont match*/
+    if (!verify_data(buff_ind(b->read_pointer - hdr_incl_len), len + hdr_incl_len, check_sum)){
+        return false;
+    }
+    out->data_src = get_curr(b);
+    out->type = type;
+    out->len = len;
+    return true;
+}
+static void commit_m_rc_list(list * manifest_cmt_buffer, const  manifest_commit_inf m){
+    manifest_record * m_arr = manifest_cmt_buffer->arr;
+    for (int i = 0; i < manifest_cmt_buffer->len; i++){
+        const manifest_record r = m_arr[i];
+        switch (r.type){
+            case FILE_ADD:
+                sst_f_inf inf;
+
+            case FILE_DELTE:
+            default:
+
+        }
+    }
+    clear_list(manifest_cmt_buffer);
+}
+static void act_on_record(byte_buffer * stream, list * manifest_cmt_buffer, const manifest_record curr, const manifest_commit_inf m){
+    switch(curr.type){
+        case MD_FLUSH:
+            b_seek_next_align(stream, 4096);
+        case MD_COMMIT:
+            commit_m_rc_list(manifest_cmt_buffer, m);
+            b_seek_next_align(stream, 4096);
+        default:
+            insert(manifest_cmt_buffer, &curr);
+    }
 }
 static inline int get_b_swap_size(uint64_t base){
     return base - m_rc_hdr_s();

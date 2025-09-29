@@ -78,7 +78,7 @@ static inline int return_struct(struct_pool * restrict pool, void *  restrict st
         pool->tail = 0;
     }
     pool->size++;
-    return 1;
+    return 1; //why the fuck does this return 1
 
 
 }
