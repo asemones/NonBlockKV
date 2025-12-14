@@ -111,3 +111,4 @@ f_str format_for_in_mem(const f_str targ);
 int disk_f_cmp(f_str disk_formatted, f_str one);
 f_str f_str_empty();
 uint64_t f_str_len_mem_disk( const f_str src);
+int read_fstr_ptr(void *buf, f_str *one);

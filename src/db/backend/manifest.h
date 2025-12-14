@@ -64,6 +64,6 @@ enum m {
 manifest* init_manifest(byte_buffer *b, uint64_t seg_cap); 
 int mainfest_flush_block(manifest * m);
 void kill_manifest(manifest *w);
-
+void delete_manifest(manifest * m);
 
 #endif 

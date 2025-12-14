@@ -122,6 +122,12 @@ typedef struct block_index{
     block_type type;
     uint32_t checksum;
 } block_index;
+int s = sizeof(block_index);
+typedef struct search_entry_list{
+    f_str *min_key;
+    block_index *index
+}search_entry_list;
+int l  = sizeof(search_entry_list);
 block_index * create_block_index(size_t est_num_keys);
 inline int num_blocks_in_pg(block_index * blocks);
 static inline block_index * get_pg_header(block_index * blocks){
@@ -283,3 +289,12 @@ uint64_t sst_md_serialized_len(const sst_f_inf *s);
 uint64_t sst_md_str(const sst_f_inf *s);
 void seralize_sst_md_all(byte_buffer * b, sst_f_inf * in);
 void read_sst_md(byte_buffer * b, sst_f_inf * in);
+void write_sst_strs(byte_buffer * b, sst_f_inf * in);
+void read_sst_md_ptr(void *buf, sst_f_inf *in) ;
+typedef struct sst_delete_record{
+    char fn[16];
+    f_str min;
+    f_str max;
+    uint64_t level;
+}sst_delete_record;
+void read_sst_strs(byte_buffer * b, sst_delete_record * record);

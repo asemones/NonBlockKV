@@ -417,6 +417,7 @@ uint64_t sst_md_str(const sst_f_inf *s){
     n += MAX_F_N_SIZE;
     n += f_str_len_mem_disk(s->max);
     n += f_str_len_mem_disk(s->min);
+    n+= sizeof(s->level);
     return n;
 
 }
@@ -434,10 +435,52 @@ void read_sst_md(byte_buffer * b, sst_f_inf * in){
     in->length = read_int64(b);
 
 }
-static void write_sst_strs(byte_buffer * b, sst_f_inf * in){
+void read_sst_md_ptr(void *buf, sst_f_inf *in) {
+    uint8_t *p = buf;
+
+    memcpy(in->file_name, p, MAX_F_N_SIZE);
+    p += MAX_F_N_SIZE;
+
+    p = read_fstr_ptr(p, &in->min);
+    p = read_fstr_ptr(p, &in->max);
+
+    in->length = *(int64_t *)p;
+    p += 8;
+
+    in->compressed_len = *(int64_t *)p;
+    p += 8;
+
+    in->use_dict_compression = *p;
+    p += 1;
+
+    in->compr_info.dict_offset = *(int64_t *)p;
+    p += 8;
+
+    in->compr_info.dict_len = *(int64_t *)p;
+    p += 8;
+
+    memcpy(&in->time, p, sizeof(in->time));
+    p += sizeof(in->time);
+
+    in->block_start = *(int64_t *)p;
+    p += 8;
+
+    in->length = *(int64_t *)p;
+    p += 8;
+}
+
+void write_sst_strs(byte_buffer * b, sst_f_inf * in){
     write_buffer(b, in->file_name, MAX_F_N_SIZE);
     write_fstr(b, in->min);
     write_fstr(b,in->max);
+    write_int64(b, in->level);
+
+}
+void read_sst_strs(byte_buffer * b, sst_delete_record * record){
+    read_buffer(b,record->fn,  MAX_F_N_SIZE);
+    read_fstr(b, &record->min);
+    read_fstr(b, &record->max);
+    record->level = read_int64(b);
 
 }
 void seralize_sst_md_all(byte_buffer * b, sst_f_inf * in){

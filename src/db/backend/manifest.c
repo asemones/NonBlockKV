@@ -2,7 +2,7 @@
 #define MANIFEST_BCKUP_EXT "mbe"
 
 
-
+static void serialize_manifest_metadata(manifest *w, byte_buffer *b);
 typedef struct manifest_record{
     void * data_src;
     manifest_cmd type;
@@ -10,6 +10,8 @@ typedef struct manifest_record{
 } manifest_record;
 typedef struct manifest_commit_inf{
     sst_manager * sst_man;
+    list * sst_commit_holder;
+    list * sst_delete_commands;
 }manifest_commit_inf;
 static int m_rc_size(const manifest_record r){
     return r.len + sizeof(r.len) + sizeof(r.type) + sizeof(uint32_t); //checksum
@@ -48,7 +50,7 @@ static bool manifest_parse_record(manifest * w, byte_buffer * b, manifest_record
         return false;
     }
     /*if len field is corrupted, checksum wont match*/
-    if (!verify_data(buff_ind(b->read_pointer - hdr_incl_len), len + hdr_incl_len, check_sum)){
+    if (!verify_data((uint8_t*)buf_ind(b, b->read_pointer - hdr_incl_len), len + hdr_incl_len, check_sum)){
         return false;
     }
     out->data_src = get_curr(b);
@@ -56,30 +58,33 @@ static bool manifest_parse_record(manifest * w, byte_buffer * b, manifest_record
     out->len = len;
     return true;
 }
-static void commit_m_rc_list(list * manifest_cmt_buffer, const  manifest_commit_inf m){
-    manifest_record * m_arr = manifest_cmt_buffer->arr;
-    for (int i = 0; i < manifest_cmt_buffer->len; i++){
-        const manifest_record r = m_arr[i];
-        switch (r.type){
-            case FILE_ADD:
-                sst_f_inf inf;
-
-            case FILE_DELTE:
-            default:
-
-        }
+/*finish*/
+static void commit_records(const manifest_commit_inf m){
+    sst_f_inf * ptr =  m.sst_commit_holder->arr;
+    sst_delete_record * dl_p = m.sst_delete_commands->arr;
+    for (int i = 0; i < m.sst_commit_holder->len; i++){
+        add_sst(m.sst_man, ptr, ptr->level);
     }
-    clear_list(manifest_cmt_buffer);
+    for (int i  =0; i < m.sst_delete_commands->len; i++){
+        
+    }
 }
-static void act_on_record(byte_buffer * stream, list * manifest_cmt_buffer, const manifest_record curr, const manifest_commit_inf m){
+static void act_on_record(byte_buffer * stream, const manifest_record curr, const manifest_commit_inf m){
     switch(curr.type){
         case MD_FLUSH:
             b_seek_next_align(stream, 4096);
         case MD_COMMIT:
-            commit_m_rc_list(manifest_cmt_buffer, m);
             b_seek_next_align(stream, 4096);
+        case FILE_ADD:
+            sst_f_inf inf;
+            read_sst_md(stream, &inf);
+            insert(m.sst_commit_holder, &inf);
+        case FILE_DELTE:
+            sst_delete_record record;
+            read_sst_strs(stream, &record);
+            insert(m.sst_delete_commands, &record);
         default:
-            insert(manifest_cmt_buffer, &curr);
+            printf("UNSUPPORTED\n");
     }
 }
 static inline int get_b_swap_size(uint64_t base){
@@ -96,7 +101,7 @@ static int refresh_md_wrt(manifest * w, byte_buffer * ceral){
 static int produce_snapshot(sst_manager * mana, manifest * w){
     byte_buffer * b = select_buffer(get_md_size_lwr_bnd(mana->num_levels, mana->levels)); 
     byte_buffer * md_buffer= select_buffer(4096);
-    seralize_sst_md_all(b, w);
+    seralize_sst_all(b, mana);
     pad_nearest_x(b, 4096); // allign to 4kb pg
     w->snapshot_ptr = b->curr_bytes;
     serialize_manifest_metadata(w, md_buffer);
@@ -338,6 +343,15 @@ static int flush_atomic_add(manifest *w, const manifest_record r) {
         return submission_result;
     }
     return flush_size;
+}
+void delete_manifest(manifest * m){
+    manifest_seg_mgr *mgr = &m->segments_manager;
+    for (int i = 0; i < mgr->num_segments; ++i) {
+        manifest_segment *seg = &mgr->segments[i];
+        remove(seg->filename);
+
+    }
+    remove(m->meta_ctx->desc.fn);
 }
 manifest* init_manifest(byte_buffer *b, uint64_t seg_cap) {
     manifest *w = malloc(sizeof(manifest));

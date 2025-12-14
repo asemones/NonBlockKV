@@ -137,6 +137,28 @@ int read_fstr(byte_buffer *b, f_str *one){
     read_buffer(b, one->mem, len - F_PRFX_LEN);
     return 0;
 }
+int read_fstr_ptr(void *buf, f_str *one) {
+    uint8_t *p = buf;
+
+    uint32_t len = *(uint32_t *)p;
+    p += 4;
+
+    one->len = len;
+
+    if (len <= F_SSO_LEN) {
+        memcpy(one->sso, p, len);
+        p += len;
+        return p;
+    }
+
+    memcpy(one->prfx, p, F_PRFX_LEN);
+    p += F_PRFX_LEN;
+
+    memcpy(one->mem, p, len - F_PRFX_LEN);
+    p += (len - F_PRFX_LEN);
+
+    return 0;
+}
 
 int read_and_allocate(byte_buffer * b, f_str * one){
     uint32_t len = read_int32(b);

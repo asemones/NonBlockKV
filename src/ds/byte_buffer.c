@@ -54,9 +54,6 @@ void do_checksum(byte_buffer * b, uint64_t checksum_spot) {
     uint32_t checksum = crc32(payload_ptr, payload_len);
     writeback_checksum(b, checksum, checksum_spot);
 }
-#include <stdint.h>
-#include <stddef.h>
-#include <stdbool.h>
 
 static inline bool is_pow2(size_t x) { return x && ((x & (x - 1)) == 0); }
 
@@ -72,7 +69,7 @@ void pad_nearest_x(struct byte_buffer *b, uint32_t x) {
     size_t a = x;
     size_t next = is_pow2(a) ? align_up_pow2(b->curr_bytes, a)
                               : align_up(b->curr_bytes, a);
-    pad_buffer(b, next - b->curr_bytes);
+    padd_buffer(b, next - b->curr_bytes);
 }
 
 void b_seek_next_align(struct byte_buffer *b, uint32_t align) {

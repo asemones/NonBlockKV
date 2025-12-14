@@ -14,6 +14,7 @@
 #include "test_bp.h"
 #include "testsst_man.h"
 #include "test_speedy_b.h"
+#include "testmanifest.h"
 
 void setUp (void) {} 
 void tearDown (void) {} 
@@ -63,6 +64,8 @@ int main(void) {
     RUN_TEST(test_null_and_empty_url);
     RUN_TEST(test_dumpFilter);
     */
+    RUN_TEST(test_manifest_start);
+    
     fprintf(stderr,"Running fast bloom tests\n");
     RUN_TEST(test_bb_ceil_pow2_u32);
     RUN_TEST(test_bb_filter_init);

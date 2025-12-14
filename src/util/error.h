@@ -124,9 +124,7 @@ static inline const char* get_error_string(error_codes error) {
     }
 }
 void panic(error_codes error){
-    switch(error){
-        default:
-    }
+    return;
 }
 
 

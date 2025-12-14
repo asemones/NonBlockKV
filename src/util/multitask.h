@@ -60,12 +60,69 @@
     _t->stat=  LEAF_WAIT;\
     aco_yield();\
 
+
 #define leaf_call(call)\
   do {\
     task_t *_t = aco_get_arg();\
     _t->leaf_counter++;\
     call;\
   } while (0)
+#define c_call(fn, arg)                     \
+do {                                        \
+    return cascade_sub_intern_wait(         \
+        (fn),                               \
+        (arg)                               \
+    );                                      \
+} while (0)
+
+#define c_call_nowait(fn, arg)              \
+do {                                        \
+    future_t _f;                            \
+    cascade_sub_intern_nowait(              \
+        (fn),                               \
+        (arg),                              \
+        &_f                                 \
+    );                                      \
+} while (0)
+
+#define c_call_async(fn, arg, out)          \
+do {                                        \
+    cascade_sub_intern_nowait(              \
+        (fn),                               \
+        (arg),                              \
+        (out)                               \
+    );                                      \
+} while (0)
+
+#define c_rpc_nowait(rt, fn, arg)           \
+({                                          \
+    cascade_rpc_nowait(                     \
+        (rt),                               \
+        (fn),                               \
+        (arg)                               \
+    );                                      \
+})
+
+#define c_rpc_sync(rt, fn, arg)             \
+({                                          \
+    uint64_t ____id = cascade_rpc_wait(        \
+        (rt),                               \
+        (fn),                               \
+        (arg)                               \
+    );                                      \
+    get_return_val(____id);                    \
+})
+
+#define c_thread_call_sync(___rt, ____fn, ____arg)     \
+({                                          \
+    cascade_call_external_blocking(         \
+        (____rt),                               \
+        (____fn),                               \
+        (____arg)                               \
+    );                                      \
+})
+
+
 
 typedef struct leaf_task{
     uint64_t * wait_counter;
@@ -216,9 +273,8 @@ void cascade_sub_intern_nowait(task_func func, void* arg,  future_t * addr);
 future_t cascade_sub_intern_wait(task_func func, void* arg);
 /*add a series as the same msg_q * inbox[MAX_RUNTIMES_DEFAULT];
     msg_q * outbox [MAX_RUNTIMES_DEFAULT];thread apart of the same cacscade, without a wait */
-void cascade_submit_external(cascade_runtime_t * rt, future_t * mem_loc, _Atomic uint64_t * wait_counter, task_func function, void * args); // Update signature
-void poll_rpc(uint64_t *rpc_ids, int num);
-void poll_rpc_external(cascade_runtime_t * frame, _Atomic uint64_t * wait_counter); // Update signature
+void cascade_submit_external(cascade_runtime_t * rt, future_t * mem_loc, _Atomic uint64_t * wait_counter, task_func function, void * args); 
+void poll_rpc_external(cascade_runtime_t * frame, _Atomic uint64_t * wait_counter); 
 cascade_framework_t * create_framework();
 void add_link_to_framework(cascade_framework_t * framework, cascade_runtime_t * new_runtime);
 uint64_t find_node_hash(cascade_framework_t * frame, const char * req_key, int size,  int me);

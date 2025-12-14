@@ -201,7 +201,7 @@ void cascade_intern_group_wait(task_func  * funcs, future_t * futures, int num_r
 void intern_wait_for_x(uint32_t num){
 
     task_t * t= aco_get_arg(); 
-    int targ_num=  t->running_subtacks - num;
+    int targ_num=  t->running_subtacks + -num;
     if (targ_num < 0 ) targ_num = t->running_subtacks;
 
     while (targ_num >= t->running_subtacks){
